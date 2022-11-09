@@ -1,5 +1,14 @@
 # <img id="logo" src="./img/facetsAPI.png" align="center"/> 
 
+---
+
+#### Quick Links
+* [Installation](doc/installation.md)
+* [API Reference Documentation](doc/README.md)
+* [Example Scripts & Use Cases](doc/examples.md)
+
+---
+
 ## Background 
 
 FacetsAPI is a python package for interacting with and manipulating Impact FACETS data at MSKCC.  
