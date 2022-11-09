@@ -72,4 +72,32 @@ previously processed data can simply be loaded into the FacetsMeta object.
   **This function is run automatically during FacetsMeta construction**.
 
 
+### Additional Data
+
+* OnkoTree Code generalized lists are included and can be referenced by the following variables.  For example `FacetsMeta.nscLung_cancer`.
+
+```python
+    #OncoTree Codes that correspond to a specific cancer type.  
+    breast_carcinoma    = ["ILC","IDC","BRCA","BRCNOS","BRCANOS","MDLC","MBC","CSNOS"]
+    nscLung_cancer      = ["LUAD","LUSC","LUNE","NSCLC","LUAS","NSCLCPD","ALUCA","SARCL"]
+    endometrial_cancer  = ["UMEC","UCCC","UEC","UCEC","UCS","UDDC","UUC","USC","OUTT"]
+    colorectal_cancer   = ["READ","COAD","MACR","COADREAD","CMC","CM"]
+    melanoma            = ["SKCM","ACRM","MUP","ARMM","HNMUCM","UM","VMM","SKCN"]
+    scLung_cancer       = ["SCLC","CSCLC"]
+    ovarian_cancer      = ["HGSOC","CCOV","LGSOC","OCS","EOV"]
+    prostate_cancer     = ["PRAD","PRSCC","PRSC"]
+    unknown_primary     = ["NETNOS","ADNOS","CUP","PDC","NECNOS","CUPNOS","SCUP"]
+    bladder_cancer      = ["BLCA", "UTUC", "UCU", "BLSC", "USCC"]
+    pancreatic_cancer   = ["PAAD","PANET","PAASC","UCP","SPN","PB"]
+    renalCell_carcinoma = ["PRCC","TRCC","CCRCC","URCC","RCC","CHRCC","MT","SRCC","ROCY","MTSCC"]
+    glioma              = ["ASTR","ODG","AODG","GBM","HGGNOS","AASTR","GB","DIFG"]
+    headNeck_carcinoma  = ["HNSC","OPHSC","HPHSC","OCSC","HNSCUP","LXSC","HNNE","SNSC","ODGC"]
+    germCell_tumor      = ["MGCT","SEM","VMT","BMT","OYST","GCTSTM","NSGCT","EMBCA","OGCT","OMGCT","TT","TYST","VDYS","ODYS","OIMT","VYST","VMGCT","BMGCT","BIMT","VIMT","BYST","OMT","GCT"]
+
+```
+
+
+* chr_arms
+  * Chromosome arm position map.  This structure is a dictionary mapping chromosome to relevant arm level positions. chrID -> [p_start, p_end, q_start, q_end].  F `1: [1,125000000,125000001,249250621],`    
+
 
