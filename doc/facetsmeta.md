@@ -98,6 +98,6 @@ previously processed data can simply be loaded into the FacetsMeta object.
 
 
 * chr_arms
-  * Chromosome arm position map.  This structure is a dictionary mapping chromosome to relevant arm level positions. chrID -> [p_start, p_end, q_start, q_end].  F `1: [1,125000000,125000001,249250621],`    
+  * Chromosome arm position map.  This structure is a dictionary mapping chromosome to relevant arm level positions. chrID -> [p_start, p_end, q_start, q_end].  For example, chromosome 1 data is  `{1: [1,125000000,125000001,249250621]}`.  Data for chromosome 1, for example, can be accessed using `FacetsMeta.chr_arms.get(1)`. 
 
 
