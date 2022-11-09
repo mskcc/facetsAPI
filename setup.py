@@ -17,5 +17,5 @@ setuptools.setup(
     },
     license='MIT',
     packages=['facetsAPI'],
-    install_requires=['pandas', 'pickle'],
+    install_requires=['pandas'],
 )
