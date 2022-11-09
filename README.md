@@ -16,6 +16,6 @@ FacetsAPI exists as an interactive layer between the user and the data, making w
 
 FacetsAPI provides a framework for interacting with this FACETS data, allowing users to specify specific conditions or to apply advanced operations directly to facets data without needing to have extensive experience in the distributed FACETS file structure, and without extensive manual interaction.  It incorporates a generalized design that allows it to address a variety of potential use-cases.
 
-<img id="logo" src="./img/facets_api_layer.png" align="center"/> 
+<img id="logo" src="./img/facets_api_structure.png" align="center"/> 
 
 FACETS files contain a variety of files detailing segments, copy number alteration, QC, gene level data, and a variety of other useful information.  FacetsAPI structures this data into an object-oriented set of classes that work holistically to provide a structured way to work with the data.  
