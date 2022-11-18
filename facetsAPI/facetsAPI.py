@@ -1,4 +1,5 @@
 from heapq import merge
+from random import sample
 import sys
 import os.path
 import glob
@@ -24,11 +25,14 @@ class bcolors:
 
 ######################
 # FacetsMeta:    This class represents necessary metadata structures that hold information such as directory paths,
-#                cancer types, and other clinical data that need to be referenced in FacetsSamples.
+#                cancer types, and other clinical data that need to be referenced in FacetsRuns.
 ######################
 class FacetsMeta:
     use_unreviewed_defaults = False
     hisens_vs_purity        = "purity"
+    selectSingleRun         = False
+    failed_samples          = []
+    run_verbose             = False
 
     #OncoTree Codes that correspond to a specific cancer type.  
     breast_carcinoma    = ["ILC","IDC","BRCA","BRCNOS","BRCANOS","MDLC","MBC","CSNOS"]
@@ -77,12 +81,12 @@ class FacetsMeta:
         "Y": [1,12500000,12500001,59373566]
     }
 
-    def __init__(self, clinical_sample_file, facets_repo_path, use_unreviewed_defaults, hisens_vs_purity, persist_data="no"):
+    def __init__(self, clinical_sample_file, facets_repo_path, hisens_vs_purity, persist_data="no"):
         #Relevant path and file data.
         self.clinical_sample_file    = clinical_sample_file
         self.facets_repo_path        = facets_repo_path
-        self.use_unreviewed_defaults = use_unreviewed_defaults
         self.hisens_vs_purity        = hisens_vs_purity
+        self.persist_data            = persist_data
 
         #Data structures and storage.
         self.master_file_dict       = {} # A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir]}
@@ -95,27 +99,71 @@ class FacetsMeta:
         self.onkotree_code_map      = {} # A map of onkotree codes.
         self.cvr_tmb_score_map      = {} # A map of cvr tmb scores from the clinical sample file.
         self.msi_score_map          = {} # A map of msi scores.
+        self.long_id_map            = {} # A map of sample ids to their corresponding long_ids.  id -> [long_id1, long_id2...]
 
+    def buildFacetsMeta(self):
         #Making a meta is going to be the first thing in FACETS API, so this is where we can print the logo.
         self.printLogo()
 
         #Fill in most of these structures with the parseClinicalSample function.
         #If we are using data persistance, we want to load that from an existing structured file or save the initial parse to an existing file.
         #That way we don't need to process the clinical sample file each run.
-        if persist_data != "no":
-            if os.path.isfile(persist_data):
+        if self.persist_data != "no":
+            if os.path.isfile(self.persist_data):
                 print("\tLoading previously processed FacetsMeta object.")
-                storedMeta = open(persist_data, 'rb')
+                storedMeta = open(self.persist_data, 'rb')
                 savedInstance = pickle.load(storedMeta) 
                 for k in savedInstance.__dict__.keys():
                     setattr(self, k, getattr(savedInstance, k))
             else:
                 self.parseClinicalSample()
                 print("\tStoring this FacetsMeta object for future loading.")
-                dataToStore = open(persist_data, 'wb')
+                dataToStore = open(self.persist_data, 'wb')
                 pickle.dump(self, dataToStore)
         else:
             self.parseClinicalSample()
+
+    #This function will set this FacetsMeta object to select a single run per sample.
+    def setSingleRunPerSample(self, doSet):
+        try:
+            if not isinstance(doSet, bool):
+                print (bcolors.FAIL)
+                print ("\t\tError in FacetsMeta.setSingleRunPerSample(). Expected True or False value.")
+                print (e)
+                print (bcolors.ENDC)
+                sys.exit()
+            FacetsMeta.selectSingleRun = doSet
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FacetsMeta.setSingleRunPerSample(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
+
+    #This function will set this FacetsMeta object to allow default fits when selecting single runs.
+    def allowDefaultFitsIfNoBest(self, doSet):
+        try:
+            if not isinstance(doSet, bool):
+                print (bcolors.FAIL)
+                print ("\t\tError in FacetsMeta.allowDefaultFitsIfNoBest(). Expected True or False value.")
+                print (e)
+                print (bcolors.ENDC)
+                sys.exit()
+            if not FacetsMeta.selectSingleRun and doSet:
+                print (bcolors.FAIL)
+                print("\t\tError in FacetsMeta.allowDefaultFitsIfNoBest().  Cannot set default fit selection to True when FacetsMeta.setSingleRunPerSample() is False.\nRun FacetsMeta.setSingleRunPerSample(True) first.")
+                print("\t\t\tFacetsMeta.selectSingleRun: " + str(FacetsMeta.selectSingleRun))
+                print("\t\t\tFailed to set FacetsMeta.use_unreviewed_defaults to: " + str(FacetsMeta.doSet))
+                print (bcolors.ENDC)
+                sys.exit()
+
+            FacetsMeta.use_unreviewed_defaults = doSet
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FacetsMeta.allowDefaultFitsIfNoBest(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
 
     #Simple method for printing a FACETS API logo.
     @staticmethod
@@ -138,18 +186,20 @@ class FacetsMeta:
     #                         cancer type and to patient id.
     ######################
     def parseClinicalSample(self):
-        num_best_fits       = 0
-        num_acceptable_fits = 0
-        num_default_fits    = 0
-        num_multi_normals   = 0
-        num_missing         = 0
+        num_best_fits        = 0
+        num_acceptable_fits  = 0
+        num_default_fits     = 0
+        num_multi_normals    = 0
+        num_missing_manifest = 0
+        num_missing          = 0
 
         try:
             print("\tProcessing clinical data...")
-            clinical_df = pd.read_csv(clinical_sample_file, sep="\t", low_memory=False)
+            clinical_df = pd.read_csv(self.clinical_sample_file, sep="\t", low_memory=False)
 
             #Extract DMP id's for everything in our clinical sample file.
             print("\t\tIdentifying samples from impact FACETS repository.")
+
             target_ids           = clinical_df['SAMPLE_ID'].tolist()
             patient_ids          = clinical_df['PATIENT_ID'].tolist()
             cancer_types         = clinical_df['CANCER_TYPE'].tolist()
@@ -171,13 +221,13 @@ class FacetsMeta:
                 self.msi_score_map[target_ids[i]]          = msi_scores[i]
 
             #For each DMP id, confirm existence and build a set of relevant directories.
-            print("\t\tBuilding directory map.")
+            if FacetsMeta.selectSingleRun:
+                print("\t\tBuilding directory map targeting a best runs for each sample.")
+            else:
+                print("\t\tBuilding directory map including all runs for each sample.")
             for id in target_ids:
                 cur_short_id = id[0:7]
-                #print(id)
-                #print(cur_short_id)
-                
-                cur_id_dirs = glob.glob(facets_dir + cur_short_id + "/" + id + "*")
+                cur_id_dirs = glob.glob(self.facets_repo_path + cur_short_id + "/" + id + "*")
 
                 #Keep track of how many samples had the same tumor/id, but multiple normals.
                 if len(cur_id_dirs) > 1:
@@ -186,84 +236,144 @@ class FacetsMeta:
                 if not cur_id_dirs:
                     continue
                 else:
+                    id_with_normal = cur_id_dirs[-1].split('/')[-1]
+
                     cur_manifest_file  = cur_id_dirs[-1] + "/facets_review.manifest"
                     cur_facets_qc_file = cur_id_dirs[-1] + "/facets_qc.txt" 
 
                     #If there is no manifest file, skip the sample.
                     if not os.path.exists(cur_manifest_file):
+                        num_missing_manifest = num_missing_manifest + 1
                         continue
 
                     cur_manifest = pd.read_csv(cur_manifest_file, skiprows=1, sep="\t", low_memory=False)
                     manifest_data = cur_manifest[['path', 'review_status', 'fit_name']]
 
-                    #Grab important data for best/acceptable/default fits.
-                    target_best_fit = manifest_data.loc[manifest_data['review_status'].isin(["reviewed_best_fit"])]
-                    target_accept_fit = manifest_data.loc[manifest_data['review_status'].isin(["reviewed_acceptable_fit"])]
-                    if(self.use_unreviewed_defaults):
-                        target_default_fit = manifest_data.loc[manifest_data['fit_name'].isin(["default"])]
+                    #If we are looking for individual fits we will want to look for the best and consider default fits.
+                    if FacetsMeta.selectSingleRun:
+                        #Grab important data for best/acceptable/default fits.
+                        target_best_fit = manifest_data.loc[manifest_data['review_status'].isin(["reviewed_best_fit"])]
+                        target_accept_fit = manifest_data.loc[manifest_data['review_status'].isin(["reviewed_acceptable_fit"])]
+                        if(FacetsMeta.use_unreviewed_defaults):
+                            target_default_fit = manifest_data.loc[manifest_data['fit_name'].isin(["default"])]
 
-                    selected_fit_dir = ""
-                    #If there is a best fit available, we want to use that.
-                    if(not target_best_fit.empty):
-                        best_fit_list = target_best_fit.values.tolist()[0]
-                        if best_fit_list[0][-1] != '/':
-                            best_fit_list[0] = best_fit_list[0] + "/"
-                        selected_fit_dir  = best_fit_list[0] + best_fit_list[2] + "/"
-                        num_best_fits = num_best_fits + 1     
-                    #If there is no best fit, check for acceptable fits.
-                    elif(not target_accept_fit.empty):
-                        accept_fit_list = target_accept_fit.values.tolist()[0]
-                        if accept_fit_list[0][-1] != '/':
-                            accept_fit_list[0] = accept_fit_list[0] + "/"
-                        selected_fit_dir  = accept_fit_list[0] + accept_fit_list[2] + "/"
-                        num_acceptable_fits = num_acceptable_fits + 1
-                    #If we have nothing still, and are accepting default fits, use that.
-                    elif(self.use_unreviewed_defaults):
-                        default_fit_list = target_default_fit.values.tolist()[0]
-                        if default_fit_list[0][-1] != '/':
-                            default_fit_list[0] = default_fit_list[0] + "/"
-                        selected_fit_dir  = default_fit_list[0] + default_fit_list[2] + "/"
-                        num_default_fits = num_default_fits + 1
-                    #Nothing we want was available, move on from this sample.
+                        selected_fit_dir = ""
+                        #If there is a best fit available, we want to use that.
+                        if(not target_best_fit.empty):
+                            best_fit_list = target_best_fit.values.tolist()[0]
+                            if best_fit_list[0][-1] != '/':
+                                best_fit_list[0] = best_fit_list[0] + "/"
+                            selected_fit_dir  = best_fit_list[0] + best_fit_list[2] + "/"
+                            num_best_fits = num_best_fits + 1     
+                        #If there is no best fit, check for acceptable fits.
+                        elif(not target_accept_fit.empty):
+                            accept_fit_list = target_accept_fit.values.tolist()[0]
+                            if accept_fit_list[0][-1] != '/':
+                                accept_fit_list[0] = accept_fit_list[0] + "/"
+                            selected_fit_dir  = accept_fit_list[0] + accept_fit_list[2] + "/"
+                            num_acceptable_fits = num_acceptable_fits + 1
+                        #If we have nothing still, and are accepting default fits, use that.
+                        elif(FacetsMeta.use_unreviewed_defaults):
+                            default_fit_list = target_default_fit.values.tolist()[0]
+                            if default_fit_list[0][-1] != '/':
+                                default_fit_list[0] = default_fit_list[0] + "/"
+                            selected_fit_dir  = default_fit_list[0] + default_fit_list[2] + "/"
+                            num_default_fits = num_default_fits + 1
+                        #Nothing we want was available, move on from this sample.
+                        else:
+                            continue
+
+                        #Find the correct file paths depending on if we want hisens or purity.
+                        out_file  = ""
+                        cncf_file = ""
+                        qc_file   = ""
+                        cur_out   = ""
+                        cur_cncf  = ""
+                        gene_level_file = ""
+                        if self.hisens_vs_purity == "purity":
+                            cur_out    = glob.glob(selected_fit_dir + "/*_purity.out")
+                            cur_cncf   = glob.glob(selected_fit_dir + "/*_purity.cncf.txt")
+                        elif self.hisens_vs_purity == "hisens":
+                            cur_out    = glob.glob(selected_fit_dir + "/*_hisens.out")
+                            cur_cncf   = glob.glob(selected_fit_dir + "/*_hisens.cncf.txt")
+                        else:
+                            print("Error: hisens_vs_purity value should be 'hisens' or 'purity'.")
+                            sys.exit()
+
+                        cur_qc         = glob.glob(selected_fit_dir + "*qc.txt")
+                        cur_gene_level = glob.glob(selected_fit_dir + "*gene_level.txt")
+
+                        #If critical files are missing, skip the sample.
+                        if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level:
+                            num_missing = num_missing + 1
+                            continue
+                        else:
+                            out_file        = cur_out[0]
+                            cncf_file       = cur_cncf[0]
+                            qc_file         = cur_qc[0]
+                            gene_level_file = cur_gene_level[0]
+
+                        self.long_id_map[id]   = [id_with_normal]
+                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file]
+
+                    #If we want to read in all fits for each sample, we need to iterate the manifest and build each one out.
                     else:
-                        continue
+                        cur_run_list = []
+                        for index, row in manifest_data.iterrows():
+                            if row['fit_name'] == "Not selected":
+                                continue
 
-                    #Find the correct file paths depending on if we want hisens or purity.
-                    out_file  = ""
-                    cncf_file = ""
-                    qc_file   = ""
-                    cur_out   = ""
-                    cur_cncf  = ""
-                    gene_level_file = ""
-                    if self.hisens_vs_purity == "purity":
-                        cur_out    = glob.glob(selected_fit_dir + "/*_purity.out")
-                        cur_cncf   = glob.glob(selected_fit_dir + "/*_purity.cncf.txt")
-                    elif self.hisens_vs_purity == "hisens":
-                        print("hisens")
-                        cur_out    = glob.glob(selected_fit_dir + "/*_hisens.out")
-                        cur_cncf   = glob.glob(selected_fit_dir + "/*_hisens.cncf.txt")
-                    else:
-                        print("Error: hisens_vs_purity value should be 'hisens' or 'purity'.")
-                        sys.exit()
+                            long_id = id_with_normal + "#" + row['fit_name']
+                            out_file  = ""
+                            cncf_file = ""
+                            qc_file   = ""
+                            cur_out   = ""
+                            cur_cncf  = ""
+                            gene_level_file = ""
 
-                    cur_qc         = glob.glob(selected_fit_dir + "*qc.txt")
-                    cur_gene_level = glob.glob(selected_fit_dir + "*gene_level.txt")
+                            #Handle cases where the path doesn't properly end with a / character.
+                            cur_sample_folder = row['path']
+                            if cur_sample_folder[-1] != '/':
+                                cur_sample_folder = cur_sample_folder + "/"
 
-                    #If critical files are missing, skip the sample.
-                    if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level:
-                        num_missing = num_missing + 1
-                        continue
-                    else:
-                        out_file        = cur_out[0]
-                        cncf_file       = cur_cncf[0]
-                        qc_file         = cur_qc[0]
-                        gene_level_file = cur_gene_level[0]
+                            cur_fit_folder = cur_sample_folder + row['fit_name'] + "/"
 
-                    self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file]
+                            if self.hisens_vs_purity == "purity":
+                                cur_out    = glob.glob(cur_fit_folder + "*_purity.out")
+                                cur_cncf   = glob.glob(cur_fit_folder + "*_purity.cncf.txt")
+                            elif self.hisens_vs_purity == "hisens":
+                                cur_out    = glob.glob(cur_fit_folder + "*_hisens.out")
+                                cur_cncf   = glob.glob(cur_fit_folder + "*_hisens.cncf.txt")
+                            else:
+                                print("Error: hisens_vs_purity value should be 'hisens' or 'purity'.")
+                                sys.exit()
 
-            print("\tIdentified " + str(num_best_fits) + " best fits.")
-            print("\tIdentified " + str(num_acceptable_fits) + " acceptable fits.")
-            print("\tIdentified " + str(num_default_fits) + " default fits.")
+                            cur_qc         = glob.glob(cur_fit_folder + "*qc.txt")
+                            cur_gene_level = glob.glob(cur_fit_folder + "*gene_level.txt")
+
+                            #If critical files are missing, skip the sample.
+                            if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level:
+                                num_missing = num_missing + 1
+                                continue
+                            else:
+                                out_file        = cur_out[0]
+                                cncf_file       = cur_cncf[0]
+                                qc_file         = cur_qc[0]
+                                gene_level_file = cur_gene_level[0]
+
+                            cur_run_list.append(long_id)
+                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file]
+
+                        self.long_id_map[id] = cur_run_list
+
+            if FacetsMeta.selectSingleRun:
+                print("\tSelecting single FacetsRun per FacetsSample.")
+                print("\t\tIdentified " + str(num_best_fits) + " best fits.")
+                print("\t\tIdentified " + str(num_acceptable_fits) + " acceptable fits.")
+                print("\t\tIdentified " + str(num_default_fits) + " default fits.")
+            else:
+                print("\tSelecting all FacetsRuns for each FacetsSample.")
+
             print("\tIdentified " + str(num_multi_normals) + " instances of tumor having multiple normals.")
             print("\tSkipped " + str(num_missing) + " samples due to missing files.")
             print("\t\tTotal samples extracted: " + str(len(self.master_file_dict)))
@@ -276,14 +386,17 @@ class FacetsMeta:
             sys.exit()
 
 
+
 ######################
-# FacetsDataset:    This class represents a set of FacetsSamples.  It includes functions for selecting, filtering,
+# FacetsDataset:    This class represents a set of FacetsRuns.  It includes functions for selecting, filtering,
 #                   writing output, and modifying/creating file structures.
 ######################
 class FacetsDataset:
     def __init__(self):
-        self.sampleList = []
+        self.sampleList = {}
+        self.runList = []
         self.numSamples = 0
+        self.ref_facetsMeta = None
 
         self.filterCancerType = False
         self.selectedCancerTypes = []
@@ -326,6 +439,45 @@ class FacetsDataset:
     #This function will write a facets data set to a tab delimited file.
     def writeToDelimFile(self, include_):
         pass
+
+    #This function will calculate and write calculated purity data for each sample.  If use_base_cf is true, cf will be used
+    #rather than cf.em.  
+    def writePurityCFs(self, outfile_path, use_base_cf=False, use_long_id=True):
+        try:
+            with open(outfile_path, 'w') as outfile:
+                headerString = "ID\tPurity\n"
+                outfile.write(headerString)
+                for curSample in self.runList:
+                    curPurity = curSample.calculatePurityByCF(use_base_cf)
+                    if use_long_id:
+                        outfile.write(self.ref_facetsMeta.long_id_map.get(curSample.id)[0] + "\t" + str(curPurity) + "\n")
+                    else:
+                        outfile.write(curSample.id + "\t" + str(curPurity) + "\n")
+
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FacetsDataset.writePurityCFs(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
+
+
+    #This function will run alteration analysis on the FacetsDataset.
+    def runAlterationAnalysis(self):
+        try:
+            for sample in self.sampleList:
+                cur_sample = self.sampleList.get(sample)
+                for cur_run in cur_sample.runs:
+                    cur_run.defineArms()
+                    cur_run.defineAllLohAndGains()
+                    cur_run.defineCFLevels()
+                    cur_run.defineSampleLevelAlterationCall(FacetsRun.alteration_cov_min, FacetsRun.alteration_arm_num)
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FacetsDataset.runAlterationAnalysis(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
 
     #This function will write an output file containing arm level data and alteration calls.
     #Output file will be id, cancer_type, cancer_type_detail, purity, onkoCode, tmb, msi, wgd, fga, frac_loh, isHypoploidy, isGainHeavy
@@ -579,7 +731,9 @@ class FacetsDataset:
 
                 outfile.write(headerString + "\n")
 
-                for curSample in self.sampleList:
+                for curSample in self.runList:
+                    print("hi" + curSample.cancerType)
+                    curSample.printSample()
                     curLineString = ""
                     curLineString += curSample.id + "\t"
                     curLineString += curSample.cancerType + "\t"
@@ -646,6 +800,19 @@ class FacetsDataset:
             print (bcolors.ENDC)
             sys.exit()
 
+
+    #This function will print a specific sample in this facets dataset.
+    def printFacetsSampleById(self, id):
+        if id not in self.sampleList:
+            print (bcolors.WARNING)
+            print ("\t\Warning in FacetsDataset.printFacetsSampleById(). ID not found: " + str(id))
+            print (e)
+            print (bcolors.ENDC)
+        else:
+            target_sample = self.sampleList.get(id)
+            target_sample.printSample()
+
+
     #This function will build a facets data set using whatever filters are set.
     def buildFacetsDataset(self, facets_metadata):
         try:
@@ -655,7 +822,11 @@ class FacetsDataset:
                 print (bcolors.ENDC)
                 sys.exit()
 
+            self.ref_facetsMeta = facets_metadata
+
             total_samples_prepped = 0
+            num_build_failed      = 0
+            num_file_failed       = 0
             print("\tApplying filtering and building FacetsDataset beginning with " + str(len(facets_metadata.master_file_dict)) + " samples.")
 
             #Go through our master file dictionary and build facets sample objects.
@@ -702,7 +873,6 @@ class FacetsDataset:
                     if cur_tmb < self.minTMB or cur_tmb > self.maxTMB:
                         continue
 
-
                 #MSI Filter.
                 if self.filterMSI:
                     cur_msi = facets_metadata.msi_score_map.get(key)
@@ -719,8 +889,9 @@ class FacetsDataset:
                 cur_dipLogR = 0
                 out_data    = []
                 if self.filterPurity or self.filterPloidy or self.filterDipLogR or self.filterCval or self.filterWGD or self.filterWGD or self.filterFGA or self.filterFracLoH:
-                    out_data    = FacetsSample.parseOut(cur_dir_map[0])
+                    out_data    = FacetsRun.parseOut(cur_dir_map[0])
                     if out_data is False:
+                        num_file_failed += 1
                         continue
                     cur_purity  = out_data[0]
                     cur_cVal    = out_data[1]
@@ -732,8 +903,9 @@ class FacetsDataset:
                 cur_fga      = 0
                 cur_frac_loh = 0
                 if self.filterWGD or self.filterFGA or self.filterFracLoH:
-                    sample_qc_data = FacetsSample.parseSampleQC(cur_dir_map[2], out_data[1])
+                    sample_qc_data = FacetsRun.parseSampleQC(cur_dir_map[2], out_data[1])
                     if sample_qc_data is False:
+                        num_file_failed += 1
                         continue
                     cur_wgd      = sample_qc_data[0]
                     cur_fga      = sample_qc_data[1]
@@ -797,8 +969,9 @@ class FacetsDataset:
 
                 #Facets QC Filter.
                 if self.filterFacetsQC:
-                    facets_qc_out = FacetsSample.parseFacetsQC(cur_dir_map)
-                    if facets_qc_out is False:
+                    facets_qc_out = FacetsRun.parseFacetsQC(cur_dir_map)
+                    if facets_qc_out == -1:
+                        num_file_failed += 1
                         continue
                     #If we want to keep facets QC Pass samples, we want to ignore when facets_qc_out is false.
                     if self.keepQCPass:
@@ -809,16 +982,52 @@ class FacetsDataset:
                         if facets_qc_out:
                             continue
 
-                #We've passed all filters, we can build the FacetsSample for this sample.
-                cur_sample = FacetsSample.buildFacetsSample(key,facets_metadata)
-                if cur_sample is False:
+                #We've passed all filters, we can build the FacetsRun and FacetsSample for this sample.
+                cur_run = FacetsRun.buildFacetsRun(key,facets_metadata)
+                if cur_run is False:
+                    num_build_failed += 1
                     continue
                 else:
-                    self.sampleList.append(cur_sample)
+                    cur_sample_id = ""
+                    if FacetsMeta.selectSingleRun:
+                        cur_sample_id = key
+                        if cur_sample_id in self.ref_facetsMeta.long_id_map:
+                            cur_long_id = self.ref_facetsMeta.long_id_map.get(cur_sample_id)[0]
+                            if cur_long_id in self.sampleList:
+                                cur_sample = self.sampleList.get(cur_long_id)
+                                cur_sample.addRun(cur_run)
+                            else:
+                                cur_sample = FacetsSample(cur_long_id)
+                                cur_sample.addRun(cur_run)
+                                self.sampleList[cur_long_id] = cur_sample
+
+                                cur_sample.printSample()
+                        else:
+                            print (bcolors.FAIL)
+                            print ("\t\tError in FacetsDataset.buildFacetsDataset(). No long id found for " + str(key))
+                            print (e)
+                            print (bcolors.ENDC)
+                            sys.exit()
+                    else:
+                        #When we use all runs in a sample, we are using long id (ID_runID, i.e. P-0000067-T01-IM3_P-0000067-N01-IM3#altDiplogR-02).
+                        #We are splitting for now on that # character to get the short id.
+                        cur_sample_id = key.split('#')[0]
+                        if cur_sample_id in self.sampleList:
+                            cur_sample = self.sampleList.get(cur_sample_id)
+                            cur_sample.addRun(cur_run)
+                        else:
+                            cur_sample = FacetsSample(cur_sample_id)
+                            cur_sample.addRun(cur_run)
+                            self.sampleList[cur_sample_id] = cur_sample
+
+                    self.runList.append(cur_run)
                     total_samples_prepped = total_samples_prepped + 1
 
-            self.numSamples = len(self.sampleList)
+            self.numSamples = len(self.runList)
             print("\tFacetsDataset built with " + str(self.numSamples) + " samples.")
+            print("\t\t" + str(num_file_failed) + " samples failed due to file formatting errors.")
+            print("\t\t" + str(num_build_failed) + " samples failed during FacetsRun object construction.")
+
 
         except Exception as e:
             print (bcolors.FAIL)
@@ -1181,8 +1390,8 @@ class FacetsSegment:
     min_gain_tcn         = 4    # This is the minimum value of TCN required to consider a segment to be a Gain call.
     percent_arm_gain     = 50.0 # This is the percentage of the arm that needs to be TCN=min_gain_tcn to make an arm level Gain call.
 
-    def __init__(self, chrom, start, end, cnlr_median, cf, tcn, lcn):
-        # These values are calculated in FacetsSample.defineArms().
+    def __init__(self, chrom, start, end, cnlr_median, cf, cf_base, tcn, lcn):
+        # These values are calculated in FacetsRun.defineArms().
         self.arm         = "undefined" # This is the chr/arm.  I.E. 1p, 5q, etc.
         self.percentArm  = -1          # This is the percentage of the arm that this segment covers. 
 
@@ -1191,7 +1400,16 @@ class FacetsSegment:
         self.end         = int(end)
         self.cnlr_median = float(cnlr_median)
         self.length      = int(max(end - start, start - end))
-        self.cf          = float(cf)
+        self.cf          = float(cf)      #This API uses cf.em values for everything, so its just called cf here.
+        
+        try:
+            self.cf_base = float(cf_base)
+        except ValueError:
+            try:
+                self.cf_base = int(cf_base)
+            except ValueError:
+                self.cf_base = -1
+
         if pd.isna(tcn):
             self.tcn     = -1
         else:
@@ -1226,11 +1444,12 @@ class FacetsSegment:
     def printSegment(self):
         print(bcolors.BOLD + "\t~-===--===--===--===--===--===--===--===-~" + bcolors.ENDC)
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Chromosome: " + str(self.chrom))
-        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Arm: " + self.arm)
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Arm: " + (self.arm))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Percent Arm: " + str(self.percentArm))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Start Position: " + str(self.start))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " End Position: " + str(self.end))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Length: " + str(self.length))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " CF (base): " + str(self.cf_base))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " CF (em): " + str(self.cf))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " TCN (em): " + str(self.tcn))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " LCN (em): " + str(self.lcn))
@@ -1240,12 +1459,43 @@ class FacetsSegment:
 
 
 ######################
-# FacetsSample:     This class represents single sample, and contains a variety of 
-#                   metadata for the sample, as well as a list of FacetsSegments.  
+# FacetsSample:    This class represents a FacetsSample containing one or more runs. 
 ######################
 class FacetsSample:
-    alteration_arm_num = 20 #The number of arms that need to be LOH or Gain to make a sample level Hypoploidy or GainHeavy call.
-    alteration_cov_min = 50 #The percentage of the arm that needs to be covered to make LOH/Gain calls.
+    def __init__(self, id):
+        self.id   = id
+        self.runs = []
+    
+
+    def printSample(self):
+        print(bcolors.BOLD + "\t~-===--===--===--===--===--===--===--===-~" + bcolors.ENDC)
+        print("FacetsSample: " + str(self.id))
+        print("\tThis sample contains " + str(len(self.runs)) + " FacetsRuns.")
+        for i in range(len(self.runs)):
+            print("ID: " + str(self.runs[i].id))
+            print("Fit Dir: " + str(self.runs[i].fitDir))
+        print(bcolors.BOLD + "\t~-===--===--===--===--===--===--===--===-~" + bcolors.ENDC)
+
+
+    def addRun(self, runToAdd):
+        if not isinstance(runToAdd, FacetsRun):
+            print (bcolors.FAIL)
+            print("Error: FacetsSample.addRun(): Can only add objects of type FacetsRun.")
+            print (bcolors.ENDC)
+            sys.exit()
+        else:
+            self.runs.append(runToAdd)
+            return True
+
+######################
+# FacetsRun:     This class represents single run for a facets sample, and contains a variety of 
+#                   metadata for the run, as well as a list of FacetsSegments and FacetsGenes.  
+######################
+class FacetsRun:
+    alteration_arm_num = 20    # The number of arms that need to be LOH or Gain to make a sample level Hypoploidy or GainHeavy call.
+    alteration_cov_min = 50    # The percentage of the arm that needs to be covered to make LOH/Gain calls.
+    run_alterations    = False # Whether or not to run the alteration calculation functions.
+    split_arms         = False # Wheter or not to split segments into p and q arms.
 
     def __init__(self, id, patientId, fitDir, cancerType, cancerTypeDetail, 
                  purity, clinicalPurity, onkoCode, ploidy, dipLogR, cval, 
@@ -1283,7 +1533,7 @@ class FacetsSample:
     def addSegment(self, seg):
         if not isinstance(seg, FacetsSegment):
             print (bcolors.FAIL)
-            print("Error: FacetsSample.addSegment(): Can only add objects of type FacetsSegment.")
+            print("Error: FacetsRun.addSegment(): Can only add objects of type FacetsSegment.")
             print (bcolors.ENDC)
             sys.exit()
         else:
@@ -1300,7 +1550,7 @@ class FacetsSample:
                     return True
                 else:
                     print (bcolors.FAIL)
-                    print("Error in FacetsSample.removeSegment(): Remove failed to shrink segment array.")
+                    print("Error in FacetsRun.removeSegment(): Remove failed to shrink segment array.")
                     print (bcolors.ENDC)
                     sys.exit()
         return False
@@ -1309,7 +1559,7 @@ class FacetsSample:
     def addGene(self,gene):
         if not isinstance(gene, FacetsGene):
             print (bcolors.FAIL)
-            print("Error: FacetsSample.addGene(): Can only add objects of type FacetsGene.")
+            print("Error: FacetsRun.addGene(): Can only add objects of type FacetsGene.")
             print (bcolors.ENDC)
             sys.exit()
         else:
@@ -1326,7 +1576,7 @@ class FacetsSample:
                     return True
                 else:
                     print (bcolors.FAIL)
-                    print("Error in FacetsSample.removeGene(): Remove failed to shrink gene array.")
+                    print("Error in FacetsRun.removeGene(): Remove failed to shrink gene array.")
                     print (bcolors.ENDC)
                     sys.exit()
         return False
@@ -1336,12 +1586,12 @@ class FacetsSample:
         try:
             if(int(target_chrom) <= 0 or int(target_chrom) >= 23):
                 print (bcolors.FAIL)
-                print("Error in FacetsSample.getSegmentsByChromAndArm(): target_chrom must be between 1 and 23.")
+                print("Error in FacetsRun.getSegmentsByChromAndArm(): target_chrom must be between 1 and 23.")
                 print (bcolors.ENDC)
                 sys.exit()
             if(target_arm != "p" and target_arm != "q"):
                 print (bcolors.FAIL)
-                print("Error in FacetsSample.getSegmentsByChromAndArm(): target_arm must be 'p' or 'q'.")
+                print("Error in FacetsRun.getSegmentsByChromAndArm(): target_arm must be 'p' or 'q'.")
                 print (bcolors.ENDC)
                 sys.exit()
 
@@ -1357,7 +1607,7 @@ class FacetsSample:
             
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsSample.getSegmentsByChromAndArm(). Terminating execution.")
+            print ("\t\tError in FacetsRun.getSegmentsByChromAndArm(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
@@ -1368,7 +1618,7 @@ class FacetsSample:
         try:
             if(target_chrom <= 0 or target_chrom >= 23):
                 print (bcolors.FAIL)
-                print("Error in FacetsSample.getSegmentsByChrom(): target_chrom must be between 1 and 23.")
+                print("Error in FacetsRun.getSegmentsByChrom(): target_chrom must be between 1 and 23.")
                 print (bcolors.ENDC)
                 sys.exit()
 
@@ -1381,7 +1631,38 @@ class FacetsSample:
             
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsSample.getSegmentsByChrom(). Terminating execution.")
+            print ("\t\tError in FacetsRun.getSegmentsByChrom(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
+
+
+    #This function will calculate purity based on all of the segments associated with this sample.
+    #Purity is the maximum cf value that is not 1 or NA. if use_base is set to true, this function
+    #will calculate the purity based on the non .em cf values.  Otherwise cf.em will be used.
+    def calculatePurityByCF(self, use_base=False):
+        try:
+            all_cfs      = []
+            purity_value = -1
+            for cur_seg in self.segments:
+                if use_base:
+                    if cur_seg.cf_base == -1 or cur_seg.cf_base == 1:
+                        continue
+                    all_cfs.append(cur_seg.cf_base)
+                else:
+                    if cur_seg.cf == -1 or cur_seg.cf == 1:
+                        continue
+                    all_cfs.append(cur_seg.cf)
+            if(len(all_cfs) == 0):
+                return 1
+            else:
+                purity_value = max(all_cfs)
+            
+            return purity_value
+
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FacetsRun.calculatePurityByCF(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
@@ -1401,7 +1682,7 @@ class FacetsSample:
 
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsSample.getNumberLossArms(). Terminating execution.")
+            print ("\t\tError in FacetsRun.getNumberLossArms(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
@@ -1421,7 +1702,7 @@ class FacetsSample:
 
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsSample.getNumberGainArms(). Terminating execution.")
+            print ("\t\tError in FacetsRun.getNumberGainArms(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
@@ -1433,7 +1714,7 @@ class FacetsSample:
         try:
             if len(self.cfLevel_arms) == 0:
                 print (bcolors.FAIL)
-                print ("\t\tError in FacetsSample.getSortedCFs(). cfLevels is empty. Try running defineCFLevels().")
+                print ("\t\tError in FacetsRun.getSortedCFs(). cfLevels is empty. Try running defineCFLevels().")
                 print (e)
                 print (bcolors.ENDC)
                 sys.exit()
@@ -1462,7 +1743,7 @@ class FacetsSample:
 
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsSample.getSortedCFs(). Terminating execution.")
+            print ("\t\tError in FacetsRun.getSortedCFs(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
@@ -1476,7 +1757,7 @@ class FacetsSample:
             return self.arm_cf_data.get(target_arm)
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsSample.getCFbyChromAndArm(). Terminating execution.")
+            print ("\t\tError in FacetsRun.getCFbyChromAndArm(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
@@ -1500,7 +1781,7 @@ class FacetsSample:
             for curSeg in curArmSegs:
                 if curSeg.arm == "undefined" or curSeg.percentArm == -1:
                     print (bcolors.FAIL)
-                    print("Error in FacetsSample.getArmLevelCF(): Undefined arms in " + self.id + ". Run defineArms().")
+                    print("Error in FacetsRun.getArmLevelCF(): Undefined arms in " + self.id + ". Run defineArms().")
                     print (bcolors.ENDC)
                     sys.exit()
 
@@ -1532,7 +1813,7 @@ class FacetsSample:
 
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsSample.getArmLevelCF(). Terminating execution.")
+            print ("\t\tError in FacetsRun.getArmLevelCF(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
@@ -1563,17 +1844,17 @@ class FacetsSample:
     # A CF level is a CF value that matches other CF levels in a sample. All samples with the same CFs will be in the same level.
     # match_cf_range is the maximum distance that two segments can be from one another in order to be called at the same level.
     # This function will identify arms that belong on the same level together and assign data for CF values and maps to this
-    # FacetsSample object.
+    # FacetsRun object.
     def defineCFLevels(self, match_cf_range=0.01):
         try:
             if len(self.segments) == 0:
                 print (bcolors.FAIL)
-                print("Error in FacetsSample.defineCFLevels(): No segments available for sample " + self.id)
+                print("Error in FacetsRun.defineCFLevels(): No segments available for sample " + self.id)
                 print (bcolors.ENDC)
                 sys.exit()
             if len(self.alterations) == 0:
                 print (bcolors.FAIL)
-                print("Error in FacetsSample.defineCFLevels(): Alterations have not been defined for " + self.id + ". Run defineArms() first.")
+                print("Error in FacetsRun.defineCFLevels(): Alterations have not been defined for " + self.id + ". Run defineArms() first.")
                 print (bcolors.ENDC)
                 sys.exit()
             
@@ -1697,7 +1978,7 @@ class FacetsSample:
                     largest_level_len = len(existingLevels.get(curLevel))
                     largest_level = curLevel
 
-            #Now we can add all of these data to their corresponding FacetsSample level places for future processing.
+            #Now we can add all of these data to their corresponding FacetsRun level places for future processing.
             self.cfLevel_arms   = existingLevels
             self.cfLevel_values = levelCFs
             self.arm_cf_data    = all_arm_cfs
@@ -1705,7 +1986,7 @@ class FacetsSample:
 
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsSample.defineCFLevels(). Terminating execution.")
+            print ("\t\tError in FacetsRun.defineCFLevels(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
@@ -1716,7 +1997,7 @@ class FacetsSample:
         try:
             if len(self.segments) == 0:
                 print (bcolors.WARNING)
-                print("Warning in FacetsSample.defineArms(): No segments available for sample " + self.id)
+                print("Warning in FacetsRun.defineArms(): No segments available for sample " + self.id)
                 print (bcolors.ENDC)
             else:
                 segsToRemove = []
@@ -1730,7 +2011,7 @@ class FacetsSample:
 
                     if cur_seg.start > cur_seg.end:
                         print (bcolors.FAIL)
-                        print("Error in FacetsSample.defineArms(): End position occurs before start position.")
+                        print("Error in FacetsRun.defineArms(): End position occurs before start position.")
                         self.segments[i].printSegment()
                         print (bcolors.ENDC)
                         sys.exit()
@@ -1755,13 +2036,13 @@ class FacetsSample:
                         #Split into two segments around the centromere.
                         seg1_newStart = cur_seg.start
                         seg1_newEnd   = cur_chrom_ranges[1] - 1
-                        new_Seg1      = FacetsSegment(cur_seg.chrom,seg1_newStart,seg1_newEnd,cur_seg.cnlr_median,cur_seg.cf,cur_seg.tcn,cur_seg.lcn)
+                        new_Seg1      = FacetsSegment(cur_seg.chrom,seg1_newStart,seg1_newEnd,cur_seg.cnlr_median,cur_seg.cf,cur_seg.cf_base,cur_seg.tcn,cur_seg.lcn)
                         new_Seg1.arm  = str(cur_seg.chrom) + "p"
                         new_Seg1.percentArm = float(new_Seg1.length) / float(cur_chrom_ranges[1])
 
                         seg2_newStart = cur_chrom_ranges[2] + 1
                         seg2_newEnd   = cur_seg.end
-                        new_Seg2      = FacetsSegment(cur_seg.chrom,seg2_newStart,seg2_newEnd,cur_seg.cnlr_median,cur_seg.cf,cur_seg.tcn,cur_seg.lcn)
+                        new_Seg2      = FacetsSegment(cur_seg.chrom,seg2_newStart,seg2_newEnd,cur_seg.cnlr_median,cur_seg.cf,cur_seg.cf_base,cur_seg.tcn,cur_seg.lcn)
                         new_Seg2.arm  = str(cur_seg.chrom) + "q"
                         new_Seg2.percentArm = float(new_Seg2.length) / float(cur_chrom_ranges[3])
 
@@ -1773,7 +2054,7 @@ class FacetsSample:
                     removeOk = self.removeSegment(segsToRemove[i])
                     if not removeOk:
                         print (bcolors.FAIL)
-                        print ("\t\tError in FacetsSample.defineArms(). Failed to remove centromere split segment.")
+                        print ("\t\tError in FacetsRun.defineArms(). Failed to remove centromere split segment.")
                         print (bcolors.ENDC)
                         sys.exit()
 
@@ -1782,13 +2063,13 @@ class FacetsSample:
                     addOk = self.addSegment(segsToAdd[i])
                     if not addOk:
                         print (bcolors.FAIL)
-                        print ("\t\tError in FacetsSample.defineArms(). Failed to add centromere split segment.")
+                        print ("\t\tError in FacetsRun.defineArms(). Failed to add centromere split segment.")
                         print (bcolors.ENDC)
                         sys.exit()
         
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsSample.defineArms(). Terminating execution.")
+            print ("\t\tError in FacetsRun.defineArms(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
@@ -1805,7 +2086,7 @@ class FacetsSample:
                 self.isGainHeavy = True
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsSample.defineHypoploidy(). Terminating execution.")
+            print ("\t\tError in FacetsRun.defineHypoploidy(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
@@ -1852,7 +2133,7 @@ class FacetsSample:
             #Calculate LoH and Gain percentages.
             if total_lcn0_len > cur_arm_len or total_tcnGain_len > cur_arm_len:
                 print (bcolors.FAIL)
-                print ("\t\tError in FacetsSample.calculateLohAndGains(). Total LCN=0 length or TCN>=Gain is greater than arm length.")
+                print ("\t\tError in FacetsRun.calculateLohAndGains(). Total LCN=0 length or TCN>=Gain is greater than arm length.")
                 print (bcolors.ENDC)
                 sys.exit()
             else:
@@ -1862,7 +2143,7 @@ class FacetsSample:
                 #Each chr/arm combination must be unique in the alterations map.
                 if cur_chr_arm in self.alterations:
                     print (bcolors.FAIL)
-                    print ("\t\tError in FacetsSample.calculateLohAndGains(). Duplicate key in alteration map.")
+                    print ("\t\tError in FacetsRun.calculateLohAndGains(). Duplicate key in alteration map.")
                     print (bcolors.ENDC)
                     sys.exit()
 
@@ -1882,14 +2163,14 @@ class FacetsSample:
 
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsSample.calculateLohAndGains(). Terminating execution.")
+            print ("\t\tError in FacetsRun.calculateLohAndGains(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
     
 
     ######################
-    # defineAllLohAndGains:  This function will process all segments for this FacetsSample object and populate
+    # defineAllLohAndGains:  This function will process all segments for this FacetsRun object and populate
     #                        the 'alterations' map for the sample.  A sample is determined to be LoH if it is 0 LCN for
     #                        more than the defined FacetsSegment threshold percent of of the arm for all segments on that arm.
     #                        A gain is determined by a correspondingly TCN greater than FacetsSegment.min_gain_tcn for FacetsSegment.percent_arm_gain.
@@ -1905,7 +2186,7 @@ class FacetsSample:
 
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsSample.defineAllLohAndGains(). Terminating execution.")
+            print ("\t\tError in FacetsRun.defineAllLohAndGains(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
@@ -1915,7 +2196,7 @@ class FacetsSample:
     def printAllSegments(self):
         if len(self.segments) == 0:
             print (bcolors.WARNING)
-            print("Warning in FacetsSample.printSegments(): No segments available for sample " + self.id)
+            print("Warning in FacetsRun.printSegments(): No segments available for sample " + self.id)
             print (bcolors.ENDC)
         else:
             for i in range(len(self.segments)):
@@ -1927,7 +2208,7 @@ class FacetsSample:
     def printTargetSegment(self, segNumber):
         if len(self.segments) == 0:
             print (bcolors.WARNING)
-            print("Warning in FacetsSample.printSegments(): No segments available for sample " + self.id)
+            print("Warning in FacetsRun.printSegments(): No segments available for sample " + self.id)
             print (bcolors.ENDC)
         else:
             print(bcolors.BOLD + "\t|-----------| Segment " + str(segNumber) + " |-----------|" + bcolors.ENDC)
@@ -1959,7 +2240,7 @@ class FacetsSample:
         print(bcolors.BOLD + "|" + bcolors.ENDC + " TMB: " + str(self.tmb))
         print(bcolors.BOLD + "|" + bcolors.ENDC + " MSI: " + str(self.msi))
         print(bcolors.BOLD + "| --------------------------------------- ")
-        print(bcolors.BOLD + "|" + bcolors.ENDC + " This FacetsSample currently has " + str(len(self.segments)) + " associated segments.")
+        print(bcolors.BOLD + "|" + bcolors.ENDC + " This FacetsRun currently has " + str(len(self.segments)) + " associated segments.")
         print(bcolors.BOLD + "~-===--===--===--===--===--===--===--===-~" + bcolors.ENDC )
 
 
@@ -2055,7 +2336,6 @@ class FacetsSample:
             sys.exit()
 
 
-
     ######################
     # parseSampleQC:  This function accepts a path to a .sample.qc.txt file and an expected cval
     #                 which can be identified with the parseOut function.  It returns a list
@@ -2102,7 +2382,10 @@ class FacetsSample:
 
             #Sometimes there are missing values, we need to handle those properly.
             if 'fit_name' not in qc_df.columns or 'facets_qc' not in qc_df.columns:
-                return False
+                print("parseFacetsQC Fail")
+                print(sample_dir_map)
+                print(qc_df)
+                return -1
             else:
                 #Pick the row with the fit we've determined to be the best for the given sample.
                 target_fit_name   = sample_dir_map[0].split("/")[-2]
@@ -2136,6 +2419,7 @@ class FacetsSample:
             loc_end     = cncf_df['loc.end'].tolist()
             clnr_median = cncf_df['cnlr.median'].tolist()
             cf_em       = cncf_df['cf.em'].tolist()
+            cf_base     = cncf_df['cf'].tolist()
             tcn_em      = cncf_df['tcn.em'].tolist()
             lcn_em      = cncf_df['lcn.em'].tolist()
 
@@ -2147,6 +2431,7 @@ class FacetsSample:
                                         loc_end[i],
                                         clnr_median[i],
                                         cf_em[i],
+                                        cf_base[i],
                                         tcn_em[i],
                                         lcn_em[i])
                 seg_list.append(cur_seg)
@@ -2162,39 +2447,88 @@ class FacetsSample:
 
 
     ######################
-    # buildFacetsSample:  This function accepts a sample ID and parses all relevant files and assembles
-    #                     all desired values.  It creates and returns an object of type FacetsSample. 
+    # buildFacetsRun:  This function accepts a sample ID and parses all relevant files and assembles
+    #                     all desired values.  It creates and returns an object of type FacetsRun. 
     ######################
     @staticmethod
-    def buildFacetsSample(sample_id, facets_metadata):
+    def buildFacetsRun(sample_id, facets_metadata):
         try:
             #print ("Building facets sample for " + sample_id)
             cur_dir_map            = facets_metadata.master_file_dict.get(sample_id)
 
             #If the file exists, but is empty, return a failure.
-            if os.path.getsize(cur_dir_map[0]) == 0 or os.path.getsize(cur_dir_map[1]) == 0 or os.path.getsize(cur_dir_map[2]) == 0 or os.path.getsize(cur_dir_map[3]) == 0:
+            # [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir]}
+            if os.path.getsize(cur_dir_map[0]) == 0:
+                if facets_metadata.run_verbose:
+                    print (bcolors.WARNING)
+                    print ("\t\tWarning: " + sample_id + " out_file is 0 empty!")
+                    print (bcolors.ENDC)
+                return False
+            if os.path.getsize(cur_dir_map[1]) == 0:
+                if facets_metadata.run_verbose:
+                    print (bcolors.WARNING)
+                    print ("\t\tWarning: " + sample_id + " cncf_file is 0 empty!")
+                    print (bcolors.ENDC)
+                return False
+            if os.path.getsize(cur_dir_map[2]) == 0:
+                if facets_metadata.run_verbose:
+                    print (bcolors.WARNING)
+                    print ("\t\tWarning: " + sample_id + " qc_file is 0 empty!")
+                    print (bcolors.ENDC)
+                return False
+            if os.path.getsize(cur_dir_map[3]) == 0:
+                if facets_metadata.run_verbose:
+                    print (bcolors.WARNING)
+                    print ("\t\tWarning: " + sample_id + " facets_qc_file is 0 empty!")
+                    print (bcolors.ENDC)
                 return False
 
             #Get data from our relevant input files.
-            out_data               = FacetsSample.parseOut(cur_dir_map[0])
-            sample_qc_data         = FacetsSample.parseSampleQC(cur_dir_map[2], out_data[1])
-            facets_qc_out          = FacetsSample.parseFacetsQC(cur_dir_map)
-
+            out_data               = FacetsRun.parseOut(cur_dir_map[0])
+            sample_qc_data         = FacetsRun.parseSampleQC(cur_dir_map[2], out_data[1])
+            facets_qc_out          = FacetsRun.parseFacetsQC(cur_dir_map)
+  
             #If we were missing information in any of our files, we don't want to proceed with this sample.
-            if facets_qc_out is False or sample_qc_data is False:
+            if facets_qc_out == -1:
+                if facets_metadata.run_verbose:
+                    print (bcolors.WARNING)
+                    print ("\t\tWarning: " + sample_id + " facets_qc_file parse failed when building FacetsRun object!")
+                    print ("\t\t\tDirMap for this sample: " + str(cur_dir_map))
+                    print (bcolors.ENDC)
+                FacetsMeta.failed_samples.append(sample_id)
                 return False
-
+            if sample_qc_data is False:
+                if facets_metadata.run_verbose:
+                    print (bcolors.WARNING)
+                    print(sample_id)
+                    print ("\t\tWarning: " + sample_id + " sample_qc_data parse failed when building FacetsRun object!")
+                    print ("\t\t\tDirMap for this sample: " + str(cur_dir_map))
+                    print (bcolors.ENDC)
+                FacetsMeta.failed_samples.append(sample_id)
+                return False
+                
             #Get data from our data mappings.
-            cur_cancer_type        = facets_metadata.cancer_type_map.get(sample_id)
-            cur_cancer_type_detail = facets_metadata.cancer_type_detail_map.get(sample_id)
-            cur_clin_purity        = facets_metadata.clinical_purity_map.get(sample_id)
-            cur_onko_code          = facets_metadata.onkotree_code_map.get(sample_id)
-            cur_patient_id         = facets_metadata.patient_id_map.get(sample_id)
-            cur_tmb                = facets_metadata.cvr_tmb_score_map.get(sample_id)
-            cur_msi                = facets_metadata.msi_score_map.get(sample_id)
-            
-            #Build the FacetsSample object.
-            cur_facets_sample = FacetsSample(sample_id,
+            short_id = ""
+            if facets_metadata.selectSingleRun is False:
+                short_id = sample_id.split("_")[0]
+                cur_cancer_type        = facets_metadata.cancer_type_map.get(short_id)
+                cur_cancer_type_detail = facets_metadata.cancer_type_detail_map.get(short_id)
+                cur_clin_purity        = facets_metadata.clinical_purity_map.get(short_id)
+                cur_onko_code          = facets_metadata.onkotree_code_map.get(short_id)
+                cur_patient_id         = facets_metadata.patient_id_map.get(short_id)
+                cur_tmb                = facets_metadata.cvr_tmb_score_map.get(short_id)
+                cur_msi                = facets_metadata.msi_score_map.get(short_id)
+            else:
+                cur_cancer_type        = facets_metadata.cancer_type_map.get(sample_id)
+                cur_cancer_type_detail = facets_metadata.cancer_type_detail_map.get(sample_id)
+                cur_clin_purity        = facets_metadata.clinical_purity_map.get(sample_id)
+                cur_onko_code          = facets_metadata.onkotree_code_map.get(sample_id)
+                cur_patient_id         = facets_metadata.patient_id_map.get(sample_id)
+                cur_tmb                = facets_metadata.cvr_tmb_score_map.get(sample_id)
+                cur_msi                = facets_metadata.msi_score_map.get(sample_id)
+
+            #Build the FacetsRun object.
+            cur_facets_sample = FacetsRun(sample_id,
                                             cur_patient_id, 
                                             cur_dir_map[4], 
                                             cur_cancer_type,
@@ -2214,28 +2548,17 @@ class FacetsSample:
                                             FacetsMeta.hisens_vs_purity)
             
             #Now build in the segments from the CNCF file.
-            segments = FacetsSample.parseCNCF(cur_dir_map[1])
+            segments = FacetsRun.parseCNCF(cur_dir_map[1])
             for i in range(len(segments)):
-                if str(segments[i].cf) == "nan":
+                if str(segments[i].cf) == "nan" or str(segments[i].cf_base) == "nan":
                     continue
                 cur_facets_sample.addSegment(segments[i])
 
-            #cur_facets_sample.printSample()
-            #cur_facets_sample.printAllSegments()
-            cur_facets_sample.defineArms()
-            cur_facets_sample.defineAllLohAndGains()
-            cur_facets_sample.defineCFLevels()
-            cur_facets_sample.defineSampleLevelAlterationCall(FacetsSample.alteration_cov_min, FacetsSample.alteration_arm_num)
-            #print(bcolors.WARNING + "_______AFFFTTTTEEEERRRRR DEFINE-------__-__--_" + bcolors.ENDC)
-            #cur_facets_sample.printAllSegments()
-            #cur_facets_sample.printSample()
-
             return cur_facets_sample
-            #cur_facets_sample.printSample()
 
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsSample.buildFacetsSample(). Terminating execution.")
+            print ("\t\tError in FacetsRun.buildFacetsRun(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
