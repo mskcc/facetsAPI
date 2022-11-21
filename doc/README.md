@@ -2,7 +2,7 @@
 
 ### Classes
 * [FacetsMeta](facetsmeta.md)
-* [FacetsSample](facetssample.md)
+* [FacetsSegment](facetssegment.md)
 * [FacetsGene](facetsgene.md)
 * [FacetsRun](facetsrun.md)
 * [FacetsSample](facetssample.md)
