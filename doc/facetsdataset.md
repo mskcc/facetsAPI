@@ -2,37 +2,65 @@
 
 ### Initializing a FacetsDataset
 
-After building a FacetsMeta object, it is possible to define a FacetsDataset that represents 
+After building a [FacetsMeta](facetsmeta.md) object, it is possible to define a FacetsDataset that represents all or a specified subset of facets data based on a variety of conditions.  A FacetsDataset contains a list of [FacetsSamples](facetssample.md) and/or [FacetsRuns](facetsrun.md).  When performing operations on a range of samples or runs, iterating the constructed lists contained in a FacetsDataset is the suggested approach.  The FacetsDataset object also contains functions that apply operations to the entire dataset, or that write output for a range of samples/runs.
 
-The initialization function of a FacetsMeta class requires 4 parameters:
-* Data clinical sample file path.
-* FACETS repository base path.
-* Use default fit when best/acceptable fits not available (Boolean)
-* Use "purity" or "hisens" data.
-* A path to store a persistent data file for this object. (Optional)
+The initialization function of a FacetsDataset class does not require any parameters. Instead, building a FacetsDataset object generally involves three steps.
+* Create an empty FacetsDataset: `test_dataset = FacetsDataset()`
+* Apply desired filter/selection functions.
+* Execute `buildFacetsDataset() function.`
 
-The **data clinical sample file** is updated daily by the DMP-2022 knowledgebase and can be obtained through their github page.  
-Note that not all samples present in the data_clinical_sample.txt file will necessarily be present in a FACETS file repository depending on
-factors such as change in consent, most recent FACETS update run date, or custom repositories.  
+#### Selection / Filtration Functions
+* setCancerTypeFilter(string[] selectedCancerTypes)
+  * This function applies a filter to the FacetsDataset build so that only indicated cancer types will be selected. Input is expected to a list of strings, even if the length of the selection is 1. Note that cancer types are case sensitive and should correspond to values in the data_clinical_sample.txt file. I.E. `setCancerTypeFilter(["Example Cancer Type 1", "Example Cancer Type 2"])`.
+* setCancerTypeDetailFilter(string[] selectedCancerDetailTypes)
+  * This function applies a filter to the FacetsDataset build so that only indicated detail cancer types will be selected. Input is expected to a list of strings, even if the length of the selection is 1. Note that cancer types are case sensitive and should correspond to values in the data_clinical_sample.txt file. I.E. `setCancerTypeDetailFilter(["Example Cancer Type 1", "Example Cancer Type 2"])`.
+* setPurityFilter(minPurity, maxPurity=1.0)
+  * This function applies a filter to the FacetsDataset build so that only samples with purity values in a given range are selected.  minPurity is required, however maxPurity, unless otherwise indicated, defaults to 1.
+* setClinicalPurityFilter(minPurity, maxPurity=1.0)
+  * This function applies a filter to the FacetsDataset build so that only samples with clinical purity values in a given range are selected. Clinical purity is the purity value extracted from the data_clinical_sample.txt file, whereas purity, as used in setPurityFilter(), references FACETS calculated purity. minPurity is required, however maxPurity, unless otherwise indicated, defaults to 1.
+* setOnkoCodeFilter(selectedOnkoCodes)
+  *  This function applies a filter to the FacetsDataset build so that samples with specified onko codes are included. Input is expected to a list of strings, even if the length of the selection is 1. Note that onko codes are case sensitive and should correspond to values in the data_clinical_sample.txt file. I.E. `setOnkoCodeFilter(["LUAD","LUSC")`.
+* setPloidyFilter(minPloidy, maxPloidy=1.0)
+  *  This function applies a filter to the FacetsDataset build so that only samples within a given ploidy range are selected. minPloidy and maxPloidy are both required.
+* setDipLogRFilter(minDipLogR, maxDipLogR)
+  *  This function applies a filter to the FacetsDataset build so that only samples within a given dipLogR range are selected. minDipLogR and maxDipLogR are both required.
+* setCvalFilter(minC, maxC)
+  * This function applies a filter to the FacetsDataset build so that only samples within a given cValue range are selected. minC and maxC are both required.
+* setWGDFilter(keepWGD)
+  * This function applies a filter to the FacetsDataset build indicating whether to select only WGD samples, or only non-WGD samples.  If this is set to True, WGD samples will be selected.  If set to False, only non-WGD samples will be selected.
+* setFGAFilter(minFGA, maxFGA)
+  * This function applies a filter to the FacetsDataset build so that only samples within a given FGA range are selected.  minFGA is required, however maxFGA, unless otherwise indicated, defaults to 1.
+* setFracLohFilter(minLoh, maxLoh)
+  * This function applies a filter to the FacetsDataset build so that only samples within a given frac_loh range are selected.  minLoh is required, however maxLoh, unless otherwise indicated, defaults to 1.
+* setFacetsQCFilter(keepQCPass)
+  * This function applies a filter to the FacetsDataset build indicating whether to select only samples that pass FACETS QC, or only those who fail.  If this is set to True, only FACECTS QC PASS samples will be selected. If set to False, only FACECTS QC FAIL samples will be selected.
+* setTMBFilter(minTMB, maxTMB)
+  * This function applies a filter to the FacetsDataset build so that only samples within a given TMB range are selected. minTMB and maxTMB are both required. 
+* setMSIFilter(minMSI, maxMSI)
+  * This function applies a filter to the FacetsDataset build so that only samples within a given MSI range are selected. minMSI and maxMSI are both required. 
 
-The **FACETS repository base path** represents the base directory of a FACETS repository file system. 
-For example, the main Impact FACETS repository is located on Juno at `/work/ccs/shared/resources/impact/facets/all/`.
 
-The **Use default fit when best/acceptable fits not available** is a Boolean parameter (True/False).  
-If this is set to `False`, the facets_manifest.txt file will be checked for each sample and only fits with "Best Fit" or "Accepted Fit" will be included
-in subsequent data processing steps. Default fits will not be included unless they are also Best or Accepted.  If this is `True`, Best or Accepted fits
-will be chosen as a priority when building data sets, but in the absense of an ideal fit, the default fit will be included in this FacetsMeta object.
 
-The **Use "purity" or "hisens" data** parameter will determine which type of data is examined when looking at run level data.  
-In the primary FACETS repository, hisens runs (cVal=50) and purity runs (cVal=100) both exist with *_purity or *_hisens file name suffixes.  
-This parameter allows you to decide which of these run types to select for this FacetsMeta object.  Valid selections are "purity" or "hisens".
+#### Dataset Functions
+* buildFacetsDataset(facets_meta_object)
+  * This function will populate a FacetsDataset object with samples and/or runs that meet the specified selection criteria indicated by using the above filtration functions.  This function accepts a fully constructed [FacetsMeta](facetsmeta.md) object as a parameter, and uses the directory mappings in the [FacetsMeta](facetsmeta.md) object to navigate and parse the FACETS file system for target files.  This function has two relvant variables in the object that can be referenced for custom processes `sampleList` and `runList`. sampleList is python dictionary of the form {sample_id -> FacetsSample} and runList is an array of type FacetsRun.  Either of these structures contain the entire set of data, however they are structured differently.  A [FacetsSample](facetssample.md) represents a sample that may have multiple runs, whereas a [FacetsRun](facetsrun.md) represents a single run.  References to both of these structrues are stored to allow for differential processing options and do not contribute to increased memory, as FacetsSample and FacetsRun are accessed by reference, and not by value.
 
-The **path to store a persistent data file** parameter is optional.  
-If no value is provided for this parameter, the data_clinical_sample.txt file will be read and the indicated FACETS repository will be scanned and 
-structured into a FacetsMeta object.  This process can take a few minutes, and it is sometimes not necessary to repeat the process for each run.  
-By providing a path to this parameter, on the initial run, a binary version of the fully structured FacetsMeta object will be stored to the indicated path.
-In subsequent runs, if the indicated path already points to a file, instead of parsing the clinical data and scanning the facets repository, the 
-previously processed data can simply be loaded into the FacetsMeta object.  
+
+* printLogo() 
+  * A simple method for printing a FACETS API logo. 
+  **This function is run automatically during buildFacetsMeta()**.
+* parseClinicalSample()
+  * This function will accept a clinical sample file and scan each sample's corresponding facets directory.
+  the facets_review.manifest file will be read to identify
+  the appropriate fit to use in analysis.  A dictionary mapping
+  samples to their appropriate directories is built in master_file_dict.
+  This function will also build dictionaries mapping sample id to
+  cancer type and to patient id. 
+  **This function is run automatically during buildFacetsMeta()**.
+* buildFacetsMeta()
+  * This function will populate details of the FacetsMeta object with data from the data_clinical_sample file.  This function also handles data persistence.  If this FacetsMeta object was constructed using the optional persistence parameter, this function will attempt to load data from the specified file if it exists.  If the specified file does not exist, then this function will parse the clinical data and store the specified file for future loading.
+* setVerbose(bool)
+  * This function accepts True or False as a parameter, and will activate verbose mode if set to True.  This will make warning messages visible during runtime and show more details of data processing for various processes.  By default, verbose mode is set to False.   
 
 
 #### Examples
@@ -56,52 +84,3 @@ previously processed data can simply be loaded into the FacetsMeta object.
   prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, False, "hisens")
   prepared_metadata.buildFacetsMeta()
 ```
-
-### Functions
-
-* printLogo() 
-  * A simple method for printing a FACETS API logo. 
-  **This function is run automatically during buildFacetsMeta()**.
-* parseClinicalSample()
-  * This function will accept a clinical sample file and scan each sample's corresponding facets directory.
-  the facets_review.manifest file will be read to identify
-  the appropriate fit to use in analysis.  A dictionary mapping
-  samples to their appropriate directories is built in master_file_dict.
-  This function will also build dictionaries mapping sample id to
-  cancer type and to patient id. 
-  **This function is run automatically during buildFacetsMeta()**.
-* buildFacetsMeta()
-  * This function will populate details of the FacetsMeta object with data from the data_clinical_sample file.  This function also handles data persistence.  If this FacetsMeta object was constructed using the optional persistence parameter, this function will attempt to load data from the specified file if it exists.  If the specified file does not exist, then this function will parse the clinical data and store the specified file for future loading.
-* setVerbose(bool)
-  * This function accepts True or False as a parameter, and will activate verbose mode if set to True.  This will make warning messages visible during runtime and show more details of data processing for various processes.  By default, verbose mode is set to False.   
-
-
-### Additional Data
-
-* OnkoTree Code generalized lists are included and can be referenced by the following variables.  For example `FacetsMeta.nscLung_cancer`.
-
-```python
-    #OncoTree Codes that correspond to a specific cancer type.  
-    breast_carcinoma    = ["ILC","IDC","BRCA","BRCNOS","BRCANOS","MDLC","MBC","CSNOS"]
-    nscLung_cancer      = ["LUAD","LUSC","LUNE","NSCLC","LUAS","NSCLCPD","ALUCA","SARCL"]
-    endometrial_cancer  = ["UMEC","UCCC","UEC","UCEC","UCS","UDDC","UUC","USC","OUTT"]
-    colorectal_cancer   = ["READ","COAD","MACR","COADREAD","CMC","CM"]
-    melanoma            = ["SKCM","ACRM","MUP","ARMM","HNMUCM","UM","VMM","SKCN"]
-    scLung_cancer       = ["SCLC","CSCLC"]
-    ovarian_cancer      = ["HGSOC","CCOV","LGSOC","OCS","EOV"]
-    prostate_cancer     = ["PRAD","PRSCC","PRSC"]
-    unknown_primary     = ["NETNOS","ADNOS","CUP","PDC","NECNOS","CUPNOS","SCUP"]
-    bladder_cancer      = ["BLCA", "UTUC", "UCU", "BLSC", "USCC"]
-    pancreatic_cancer   = ["PAAD","PANET","PAASC","UCP","SPN","PB"]
-    renalCell_carcinoma = ["PRCC","TRCC","CCRCC","URCC","RCC","CHRCC","MT","SRCC","ROCY","MTSCC"]
-    glioma              = ["ASTR","ODG","AODG","GBM","HGGNOS","AASTR","GB","DIFG"]
-    headNeck_carcinoma  = ["HNSC","OPHSC","HPHSC","OCSC","HNSCUP","LXSC","HNNE","SNSC","ODGC"]
-    germCell_tumor      = ["MGCT","SEM","VMT","BMT","OYST","GCTSTM","NSGCT","EMBCA","OGCT","OMGCT","TT","TYST","VDYS","ODYS","OIMT","VYST","VMGCT","BMGCT","BIMT","VIMT","BYST","OMT","GCT"]
-
-```
-
-
-* chr_arms
-  * Chromosome arm position map.  This structure is a dictionary mapping chromosome to relevant arm level positions. chrID -> [p_start, p_end, q_start, q_end].  For example, chromosome 1 data is  `{1: [1,125000000,125000001,249250621]}`.  Data for chromosome 1, for example, can be accessed using `FacetsMeta.chr_arms.get(1)`. 
-
-
