@@ -9,7 +9,6 @@ files and folders in the FACETS repository.
 The initialization function of a FacetsMeta class requires 4 parameters:
 * Data clinical sample file path.
 * FACETS repository base path.
-* Use default fit when best/acceptable fits not available (Boolean)
 * Use "purity" or "hisens" data.
 * A path to store a persistent data file for this object. (Optional)
 
@@ -36,29 +35,6 @@ By providing a path to this parameter, on the initial run, a binary version of t
 In subsequent runs, if the indicated path already points to a file, instead of parsing the clinical data and scanning the facets repository, the 
 previously processed data can simply be loaded into the FacetsMeta object.  
 
-
-#### Examples
-
-```python
-  # This will build a FacetsMeta object that includes default fits, selects "purity" type data, 
-  # and persists the FacetsMeta object into a file called all_meta.dat
-  
-  clinical_sample_file  = "/path/to/data_clinical_sample.oncokb.txt"
-  facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
-  prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, True, "purity", "all_meta.dat")
-  prepared_metadata.buildFacetsMeta()
-```
-
-
-```python
-  # This will build a FacetsMeta object that includes only curated fits, 
-  # selects "hisens" type data, and does not persist data.
-  clinical_sample_file  = "/path/to/data_clinical_sample.oncokb.txt"
-  facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
-  prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, False, "hisens")
-  prepared_metadata.buildFacetsMeta()
-```
-
 ### Functions
 
 * printLogo() 
@@ -74,7 +50,9 @@ previously processed data can simply be loaded into the FacetsMeta object.
   **This function is run automatically during buildFacetsMeta()**.
 * buildFacetsMeta()
   * This function will populate details of the FacetsMeta object with data from the data_clinical_sample file.  This function also handles data persistence.  If this FacetsMeta object was constructed using the optional persistence parameter, this function will attempt to load data from the specified file if it exists.  If the specified file does not exist, then this function will parse the clinical data and store the specified file for future loading.
-* setVerbose(bool)
+* setSingleRunPerSample(bool useSingleSample, bool allowDefaults)
+  * This function will set this FacetsMeta object to select a single run per sample based on identified best or acceptable fits, as defined in the facets manifest for any given sample.  If the first parameter, useSingleSample, is set to True, then for each sample, a single run will be selected if a best or acceptable fit is selected. If useSingleSample is set to True, then it is also possible to allow default fits to be selected in cased where no best or acceptable fit is indicated. Default for both of these parameters is set to False.
+* setVerbose(bool activateVerbose)
   * This function accepts True or False as a parameter, and will activate verbose mode if set to True.  This will make warning messages visible during runtime and show more details of data processing for various processes.  By default, verbose mode is set to False.   
 
 
@@ -107,3 +85,27 @@ previously processed data can simply be loaded into the FacetsMeta object.
   * Chromosome arm position map.  This structure is a dictionary mapping chromosome to relevant arm level positions. chrID -> [p_start, p_end, q_start, q_end].  For example, chromosome 1 data is  `{1: [1,125000000,125000001,249250621]}`.  Data for chromosome 1, for example, can be accessed using `FacetsMeta.chr_arms.get(1)`. 
 
 
+#### Examples
+
+```python
+  # This will build a FacetsMeta object, selecting a best/acceptable run for each sample 
+  # and includes default fits when best/acceptable is not indicated. Selects "purity" type data, 
+  # and persists the FacetsMeta object into a file called all_meta.dat
+  
+  clinical_sample_file  = "/path/to/data_clinical_sample.oncokb.txt"
+  facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
+  prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity", "all_meta.dat")
+  prepared_metadata.setSingleRunPerSample(True, True)
+  prepared_metadata.buildFacetsMeta()
+  
+```
+
+
+```python
+  # This will build a FacetsMeta object that includes all samples and runs. 
+  # selects "hisens" type data, and does not persist data.
+  clinical_sample_file  = "/path/to/data_clinical_sample.oncokb.txt"
+  facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
+  prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "hisens")
+  prepared_metadata.buildFacetsMeta()
+```
