@@ -46,6 +46,7 @@ previously processed data can simply be loaded into the FacetsMeta object.
   clinical_sample_file  = "/path/to/data_clinical_sample.oncokb.txt"
   facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
   prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, True, "purity", "all_meta.dat")
+  prepared_metadata.buildFacetsMeta()
 ```
 
 
@@ -55,13 +56,14 @@ previously processed data can simply be loaded into the FacetsMeta object.
   clinical_sample_file  = "/path/to/data_clinical_sample.oncokb.txt"
   facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
   prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, False, "hisens")
+  prepared_metadata.buildFacetsMeta()
 ```
 
 ### Functions
 
 * printLogo() 
   * A simple method for printing a FACETS API logo. 
-  **This function is run automatically during FacetsMeta construction**.
+  **This function is run automatically during buildFacetsMeta()**.
 * parseClinicalSample()
   * This function will accept a clinical sample file and scan each sample's corresponding facets directory.
   the facets_review.manifest file will be read to identify
@@ -69,7 +71,11 @@ previously processed data can simply be loaded into the FacetsMeta object.
   samples to their appropriate directories is built in master_file_dict.
   This function will also build dictionaries mapping sample id to
   cancer type and to patient id. 
-  **This function is run automatically during FacetsMeta construction**.
+  **This function is run automatically during buildFacetsMeta()**.
+* buildFacetsMeta()
+  * This function will populate details of the FacetsMeta object with data from the data_clinical_sample file.  This function also handles data persistence.  If this FacetsMeta object was constructed using the optional persistence parameter, this function will attempt to load data from the specified file if it exists.  If the specified file does not exist, then this function will parse the clinical data and store the specified file for future loading.
+* setVerbose(bool)
+  * This function accepts True or False as a parameter, and will activate verbose mode if set to True.  This will make warning messages visible during runtime and show more details of data processing for various processes.  By default, verbose mode is set to False.   
 
 
 ### Additional Data
