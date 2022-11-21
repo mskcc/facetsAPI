@@ -19,7 +19,7 @@ The initialization function of a FacetsDataset class does not require any parame
 * setClinicalPurityFilter(minPurity, maxPurity=1.0)
   * This function applies a filter to the FacetsDataset build so that only samples with clinical purity values in a given range are selected. Clinical purity is the purity value extracted from the data_clinical_sample.txt file, whereas purity, as used in setPurityFilter(), references FACETS calculated purity. minPurity is required, however maxPurity, unless otherwise indicated, defaults to 1.
 * setOnkoCodeFilter(selectedOnkoCodes)
-  *  This function applies a filter to the FacetsDataset build so that samples with specified onko codes are included. Input is expected to a list of strings, even if the length of the selection is 1. Note that onko codes are case sensitive and should correspond to values in the data_clinical_sample.txt file. I.E. `setOnkoCodeFilter(["LUAD","LUSC")`.
+  *  This function applies a filter to the FacetsDataset build so that samples with specified onko codes are included. Input is expected to a list of strings, even if the length of the selection is 1. Note that onko codes are case sensitive and should correspond to values in the data_clinical_sample.txt file. I.E. `setOnkoCodeFilter(["LUAD","LUSC"])`.
 * setPloidyFilter(minPloidy, maxPloidy=1.0)
   *  This function applies a filter to the FacetsDataset build so that only samples within a given ploidy range are selected. minPloidy and maxPloidy are both required.
 * setDipLogRFilter(minDipLogR, maxDipLogR)
