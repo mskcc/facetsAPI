@@ -135,16 +135,29 @@ class FacetsMeta:
         else:
             self.parseClinicalSample()
 
-    #This function will set this FacetsMeta object to select a single run per sample.
-    def setSingleRunPerSample(self, doSet):
+    #This function will set this FacetsMeta object to select a single run per sample. If allowDefaults is set to True, 
+    # default fits will be selected when best/acceptable fits are not available.  If false, only best/acceptable fits will be selected.
+    def setSingleRunPerSample(self, doSetSingle, allowDefaults):
         try:
-            if not isinstance(doSet, bool):
+            if not isinstance(doSetSingle, bool):
                 print (bcolors.FAIL)
-                print ("\t\tError in FacetsMeta.setSingleRunPerSample(). Expected True or False value.")
-                print (e)
+                print ("\t\tError in FacetsMeta.setSingleRunPerSample(). doSetSingle expected True or False value.")
                 print (bcolors.ENDC)
                 sys.exit()
-            FacetsMeta.selectSingleRun = doSet
+            if not isinstance(allowDefaults, bool):
+                print (bcolors.FAIL)
+                print ("\t\tError in FacetsMeta.setSingleRunPerSample(). allowDefaults expected True or False value.")
+                print (bcolors.ENDC)
+                sys.exit()
+            if doSetSingle == False and allowDefaults == True:
+                print (bcolors.FAIL)
+                print ("\t\tError in FacetsMeta.setSingleRunPerSample(). allowDefaults can only be True with doSetSingle is also True.")
+                print (bcolors.ENDC)
+                sys.exit()
+
+            FacetsMeta.selectSingleRun         = doSetSingle
+            FacetsMeta.use_unreviewed_defaults = allowDefaults
+
         except Exception as e:
             print (bcolors.FAIL)
             print ("\t\tError in FacetsMeta.setSingleRunPerSample(). Terminating execution.")
@@ -152,30 +165,6 @@ class FacetsMeta:
             print (bcolors.ENDC)
             sys.exit()
 
-    #This function will set this FacetsMeta object to allow default fits when selecting single runs.
-    def allowDefaultFitsIfNoBest(self, doSet):
-        try:
-            if not isinstance(doSet, bool):
-                print (bcolors.FAIL)
-                print ("\t\tError in FacetsMeta.allowDefaultFitsIfNoBest(). Expected True or False value.")
-                print (e)
-                print (bcolors.ENDC)
-                sys.exit()
-            if not FacetsMeta.selectSingleRun and doSet:
-                print (bcolors.FAIL)
-                print("\t\tError in FacetsMeta.allowDefaultFitsIfNoBest().  Cannot set default fit selection to True when FacetsMeta.setSingleRunPerSample() is False.\nRun FacetsMeta.setSingleRunPerSample(True) first.")
-                print("\t\t\tFacetsMeta.selectSingleRun: " + str(FacetsMeta.selectSingleRun))
-                print("\t\t\tFailed to set FacetsMeta.use_unreviewed_defaults to: " + str(FacetsMeta.doSet))
-                print (bcolors.ENDC)
-                sys.exit()
-
-            FacetsMeta.use_unreviewed_defaults = doSet
-        except Exception as e:
-            print (bcolors.FAIL)
-            print ("\t\tError in FacetsMeta.allowDefaultFitsIfNoBest(). Terminating execution.")
-            print (e)
-            print (bcolors.ENDC)
-            sys.exit()
 
     #Simple method for printing a FACETS API logo.
     @staticmethod

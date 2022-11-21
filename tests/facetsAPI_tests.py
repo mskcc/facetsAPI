@@ -9,8 +9,7 @@ def test_alterationFunctions(useSingleRun, allowDefaults):
 
     #Initialize FacetsMeta. This will build all relevant metadata we need going forward.
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
-    prepared_metadata.setSingleRunPerSample(useSingleRun)
-    prepared_metadata.allowDefaultFitsIfNoBest(allowDefaults)
+    prepared_metadata.setSingleRunPerSample(useSingleRun,allowDefaults)
     prepared_metadata.buildFacetsMeta()
     test_dataset = FacetsDataset()
     test_dataset.buildFacetsDataset(prepared_metadata)
@@ -25,8 +24,7 @@ def test_facetsDataset(useSingleRun, allowDefaults):
 
     #Initialize FacetsMeta. This will build all relevant metadata we need going forward.
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
-    prepared_metadata.setSingleRunPerSample(useSingleRun)
-    prepared_metadata.allowDefaultFitsIfNoBest(allowDefaults)
+    prepared_metadata.setSingleRunPerSample(useSingleRun,allowDefaults)
     prepared_metadata.buildFacetsMeta()
     test_dataset = FacetsDataset()
     test_dataset.buildFacetsDataset(prepared_metadata)
@@ -41,9 +39,7 @@ def test_facetsMeta(useSingleRun, allowDefaults):
 
     #Initialize FacetsMeta. This will build all relevant metadata we need going forward.
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
-
-    prepared_metadata.allowDefaultFitsIfNoBest(allowDefaults)
-    prepared_metadata.setSingleRunPerSample(useSingleRun)
+    prepared_metadata.setSingleRunPerSample(useSingleRun,allowDefaults)
     prepared_metadata.buildFacetsMeta()
 
 
@@ -53,8 +49,7 @@ def test_facetsPurityByCF():
 
     #Initialize FacetsMeta. This will build all relevant metadata we need going forward.
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "hisens")
-    prepared_metadata.setSingleRunPerSample(True)
-    prepared_metadata.allowDefaultFitsIfNoBest(True)
+    prepared_metadata.setSingleRunPerSample(True, True)
     prepared_metadata.buildFacetsMeta()
 
     test_dataset = FacetsDataset()
