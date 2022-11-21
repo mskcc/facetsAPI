@@ -101,6 +101,18 @@ class FacetsMeta:
         self.msi_score_map          = {} # A map of msi scores.
         self.long_id_map            = {} # A map of sample ids to their corresponding long_ids.  id -> [long_id1, long_id2...]
 
+
+    def setVerbose(self, doVerbose):
+        try:
+            run_verbose = doVerbose
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FacetsMeta.setSingleRunPerSample(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
+
+    #This function will build the FacetsMeta object. It handles executing parseClinicalSample() and data persistence.
     def buildFacetsMeta(self):
         #Making a meta is going to be the first thing in FACETS API, so this is where we can print the logo.
         self.printLogo()
