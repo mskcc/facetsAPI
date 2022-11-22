@@ -65,6 +65,6 @@ if __name__ == '__main__':
     facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
 
     #test_facetsMeta(False, False)
-    #test_facetsDataset(False, False)
-    test_alterationFunctions(False, False)
+    test_facetsDataset(False, False)
+    #test_alterationFunctions(False, False)
     #test_facetsPurityByCF()

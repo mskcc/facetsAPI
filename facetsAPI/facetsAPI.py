@@ -1074,7 +1074,7 @@ class FacetsDataset:
             print (bcolors.ENDC)
             sys.exit()
 
-    #This function sets a facets purity filter.  The selectedCancerDetailTypes parameter should be a list of strings.
+    #This function sets a facets purity filter.  
     def setPurityFilter(self, minPurity, maxPurity=1.0):
         try:
             if not (isinstance(minPurity, float) or isinstance(minPurity, int)):
@@ -1362,6 +1362,21 @@ class FacetsGene:
         self.cn_state   = cn_state
         self.filter     = filter
 
+    #Print data about this gene.
+    def printGene(self):
+        print(bcolors.BOLD + "\t~-===--===--===--===--===--===--===--===-~" + bcolors.ENDC)
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Gene: " + str(self.gene))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Gene Start: " + str(self.gene_start))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Gene End: " + str(self.gene_end))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Seg Start: " + str(self.seg_start))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Seg End: " + str(self.seg_end))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Seg Length: " + str(self.seg_length))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " CF: " + str(self.cf))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " TCN: " + str(self.tcn))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " LCN: " + str(self.lcn))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Filter: " + str(self.filter))
+        print(bcolors.BOLD + "\t~-===--===--===--===--===--===--===--===-~" + bcolors.ENDC)
+
     #Compare two genes.  If they are the same return true.
     def compareGenes(self, geneToCompare):
         try:
@@ -1467,7 +1482,7 @@ class FacetsSample:
         self.id   = id
         self.runs = []
     
-
+    #Print information about this sample.
     def printSample(self):
         print(bcolors.BOLD + "\t~-===--===--===--===--===--===--===--===-~" + bcolors.ENDC)
         print("FacetsSample: " + str(self.id))
@@ -1477,7 +1492,7 @@ class FacetsSample:
             print("Fit Dir: " + str(self.runs[i].fitDir))
         print(bcolors.BOLD + "\t~-===--===--===--===--===--===--===--===-~" + bcolors.ENDC)
 
-
+    #Add a FacetsRun to this FacetsSample.
     def addRun(self, runToAdd):
         if not isinstance(runToAdd, FacetsRun):
             print (bcolors.FAIL)
@@ -1555,6 +1570,17 @@ class FacetsRun:
                     print (bcolors.ENDC)
                     sys.exit()
         return False
+
+    #Print all genes in the gene array.
+    def printAllGenes(self):
+        if len(self.genes) == 0:
+            print (bcolors.WARNING)
+            print("Warning in FacetsRun.printSegments(): No segments available for sample " + self.id)
+            print (bcolors.ENDC)
+        else:
+            for i in range(len(self.segments)):
+                print(bcolors.BOLD + "\t|-----------| Gene " + str(i) + " |-----------|" + bcolors.ENDC)
+                self.genes[i].printGene()
 
     #Add a FacetsGene to the genes array.  Returns True if successful.
     def addGene(self,gene):
@@ -1875,7 +1901,6 @@ class FacetsRun:
                 if self.getArmLevelCF(curArm) is False:
                     continue
                 all_arm_cfs[curArm] = self.getArmLevelCF(curArm)
-
 
             #Find all of the unique CF values.
             initial_levels = []
@@ -2458,29 +2483,35 @@ class FacetsRun:
             cur_dir_map            = facets_metadata.master_file_dict.get(sample_id)
 
             #If the file exists, but is empty, return a failure.
-            # [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir]}
+            # [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir, gene_level_file]}
             if os.path.getsize(cur_dir_map[0]) == 0:
                 if facets_metadata.run_verbose:
                     print (bcolors.WARNING)
-                    print ("\t\tWarning: " + sample_id + " out_file is 0 empty!")
+                    print ("\t\tWarning: " + sample_id + " out_file is empty!")
                     print (bcolors.ENDC)
                 return False
             if os.path.getsize(cur_dir_map[1]) == 0:
                 if facets_metadata.run_verbose:
                     print (bcolors.WARNING)
-                    print ("\t\tWarning: " + sample_id + " cncf_file is 0 empty!")
+                    print ("\t\tWarning: " + sample_id + " cncf_file is empty!")
                     print (bcolors.ENDC)
                 return False
             if os.path.getsize(cur_dir_map[2]) == 0:
                 if facets_metadata.run_verbose:
                     print (bcolors.WARNING)
-                    print ("\t\tWarning: " + sample_id + " qc_file is 0 empty!")
+                    print ("\t\tWarning: " + sample_id + " qc_file is empty!")
                     print (bcolors.ENDC)
                 return False
             if os.path.getsize(cur_dir_map[3]) == 0:
                 if facets_metadata.run_verbose:
                     print (bcolors.WARNING)
-                    print ("\t\tWarning: " + sample_id + " facets_qc_file is 0 empty!")
+                    print ("\t\tWarning: " + sample_id + " facets_qc_file is empty!")
+                    print (bcolors.ENDC)
+                return False
+            if os.path.getsize(cur_dir_map[5]) == 0:
+                if facets_metadata.run_verbose:
+                    print (bcolors.WARNING)
+                    print ("\t\tWarning: " + sample_id + " gene-level file is empty!")
                     print (bcolors.ENDC)
                 return False
 
@@ -2554,6 +2585,23 @@ class FacetsRun:
                 if str(segments[i].cf) == "nan" or str(segments[i].cf_base) == "nan":
                     continue
                 cur_facets_sample.addSegment(segments[i])
+
+            #Now build in the gene-level data.
+            geneLevel = FacetsRun.parseGeneLevel(cur_dir_map[5])
+            for curGene in geneLevel:
+                geneToAdd = FacetsGene(curGene[0],
+                                        curGene[1],
+                                        curGene[2],
+                                        curGene[3],
+                                        curGene[4],
+                                        curGene[5],
+                                        curGene[6],
+                                        curGene[7],
+                                        curGene[8],
+                                        curGene[9],
+                                        curGene[10])
+
+                cur_facets_sample.addGene(geneToAdd)
 
             return cur_facets_sample
 
