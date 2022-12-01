@@ -89,7 +89,7 @@ class FacetsMeta:
         self.persist_data            = persist_data
 
         #Data structures and storage.
-        self.master_file_dict       = {} # A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir]}
+        self.master_file_dict       = {} # A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir, gene_file, adjseg_file]}
 
         #These come from data_clinical_sample.
         self.cancer_type_map        = {} # A map of sample ids to cancer types.
@@ -176,7 +176,6 @@ class FacetsMeta:
         print("|"+bcolors.OKBLUE+" \ \_\    \ \_\ \_\  \ \_____\  \ \_____\    \ \_\  \/\_____\ "+bcolors.OKCYAN+"    \ \_\ \_\  \ \_\    \ \_\ "+bcolors.ENDC+"|")
         print("|"+bcolors.OKBLUE+"  \/_/     \/_/\/_/   \/_____/   \/_____/     \/_/   \/_____/  "+bcolors.OKCYAN+"    \/_/\/_/   \/_/     \/_/ "+bcolors.ENDC+"|")
         print("~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~")
-        print("edit")
     ######################
     # parseClinicalSample:  This function will accept a clinical sample file and
     #                         scan each sample's corresponding facets directory.
@@ -320,8 +319,6 @@ class FacetsMeta:
 
                         self.long_id_map[id]   = [id_with_normal]
                         self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file]
-                        print("Line before Break")
-                        break
                      
                     #If we want to read in all fits for each sample, we need to iterate the manifest and build each one out.
                     else:
@@ -1444,7 +1441,6 @@ class FacetsSegment:
         # These values are calculated in FacetsRun.defineArms().
         self.arm         = "undefined" # This is the chr/arm.  I.E. 1p, 5q, etc.
         self.percentArm  = -1          # This is the percentage of the arm that this segment covers. 
-        self.adjusted    = True
         self.chrom       = int(chrom)
         self.start       = int(start)
         self.end         = int(end)
@@ -1524,6 +1520,8 @@ class FacetsSegment:
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " mafR: " + str(self.mafR))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Segment Clust: " + str(self.segclust))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " cnlr_median_clust: " + str(self.cnlr_median_clust))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " isLoH: " + str(self.isLoH))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " isGain: " + str(self.isGain))
         print(bcolors.BOLD + "\t~-===--===--===--===--===--===--===--===-~" + bcolors.ENDC)
 
 
