@@ -2,10 +2,11 @@ from heapq import merge
 from random import sample
 import sys
 import os.path
+import os
 import glob
 import pandas as pd
 import pickle
-
+from datetime import date
 
 ######################
 # bcolors:    This class is a set of color codes that can be concatenated in strings to change output in the terminal.
@@ -89,7 +90,7 @@ class FacetsMeta:
         self.persist_data            = persist_data
 
         #Data structures and storage.
-        self.master_file_dict       = {} # A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir]}
+        self.master_file_dict       = {} # A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir, gene_level_file, manifest_file]}
 
         #These come from data_clinical_sample.
         self.cancer_type_map        = {} # A map of sample ids to cancer types.
@@ -176,6 +177,41 @@ class FacetsMeta:
         print("|"+bcolors.OKBLUE+" \ \_\    \ \_\ \_\  \ \_____\  \ \_____\    \ \_\  \/\_____\ "+bcolors.OKCYAN+"    \ \_\ \_\  \ \_\    \ \_\ "+bcolors.ENDC+"|")
         print("|"+bcolors.OKBLUE+"  \/_/     \/_/\/_/   \/_____/   \/_____/     \/_/   \/_____/  "+bcolors.OKCYAN+"    \/_/\/_/   \/_/     \/_/ "+bcolors.ENDC+"|")
         print("~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~")
+
+
+    #This function will make backup files of existing manifests for every sample in the dataset.
+    def backupManifests(self):
+        try:
+            print("Backing up manifest files.")
+            for item in self.master_file_dict:
+                curSample   = self.master_file_dict.get(item)
+                curManifest = curSample[6]
+                bakManifest = curManifest + "." + str(date.today()) + ".bak"
+                backup_cmd  = "cp " + curManifest + " " + bakManifest
+                os.system(backup_cmd)
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FacetsDataset.backupManifests(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
+
+    #This function will make backup files of existing facets qc files for every sample in the dataset.
+    def backupFacetsQC(self):
+        try:
+            print("Backing up Facets QC files.")
+            for item in self.master_file_dict:
+                curSample   = self.master_file_dict.get(item)
+                curQC = curSample[3]
+                bakQC = curQC + "." + str(date.today()) + ".bak"
+                backup_cmd  = "cp " + curQC + " " + bakQC
+                os.system(backup_cmd)
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FacetsDataset.backupManifests(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
 
     ######################
     # parseClinicalSample:  This function will accept a clinical sample file and
@@ -315,7 +351,9 @@ class FacetsMeta:
                             gene_level_file = cur_gene_level[0]
 
                         self.long_id_map[id]   = [id_with_normal]
-                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file]
+                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, cur_manifest_file]
+
+                        #break
 
                     #If we want to read in all fits for each sample, we need to iterate the manifest and build each one out.
                     else:
@@ -363,7 +401,7 @@ class FacetsMeta:
                                 gene_level_file = cur_gene_level[0]
 
                             cur_run_list.append(long_id)
-                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file]
+                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, cur_manifest_file]
 
                         self.long_id_map[id] = cur_run_list
 
@@ -461,7 +499,6 @@ class FacetsDataset:
             print (e)
             print (bcolors.ENDC)
             sys.exit()
-
 
     #This function will run alteration analysis on the FacetsDataset.
     def runAlterationAnalysis(self):
@@ -733,8 +770,6 @@ class FacetsDataset:
                 outfile.write(headerString + "\n")
 
                 for curSample in self.runList:
-                    print("hi" + curSample.cancerType)
-                    curSample.printSample()
                     curLineString = ""
                     curLineString += curSample.id + "\t"
                     curLineString += curSample.cancerType + "\t"
@@ -807,7 +842,6 @@ class FacetsDataset:
         if id not in self.sampleList:
             print (bcolors.WARNING)
             print ("\t\Warning in FacetsDataset.printFacetsSampleById(). ID not found: " + str(id))
-            print (e)
             print (bcolors.ENDC)
         else:
             target_sample = self.sampleList.get(id)
@@ -1002,7 +1036,7 @@ class FacetsDataset:
                                 cur_sample.addRun(cur_run)
                                 self.sampleList[cur_long_id] = cur_sample
 
-                                cur_sample.printSample()
+                                #cur_sample.printSample()
                         else:
                             print (bcolors.FAIL)
                             print ("\t\tError in FacetsDataset.buildFacetsDataset(). No long id found for " + str(key))
