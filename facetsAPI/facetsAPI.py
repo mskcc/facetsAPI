@@ -307,7 +307,7 @@ class FacetsMeta:
                         cur_gene_level = glob.glob(selected_fit_dir + "*gene_level.txt")
                         
                         #If critical files are missing, skip the sample.
-                        if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level:
+                        if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level or not cur_adjseq:
                             num_missing = num_missing + 1
                             continue
                         else:
@@ -319,7 +319,7 @@ class FacetsMeta:
 
                         self.long_id_map[id]   = [id_with_normal]
                         self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file]
-                     
+                        
                     #If we want to read in all fits for each sample, we need to iterate the manifest and build each one out.
                     else:
                         cur_run_list = []
@@ -360,7 +360,7 @@ class FacetsMeta:
                             cur_gene_level = glob.glob(cur_fit_folder + "*gene_level.txt")
 
                             #If critical files are missing, skip the sample.
-                            if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level:
+                            if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level or not cur_adjseq:
                                 num_missing = num_missing + 1
                                 continue
                             else:
@@ -1369,7 +1369,6 @@ class FacetsGene:
         self.lcn             = lcn
         self.cn_state        = cn_state
         self.filter          = filter
-        #Added by John
         self.tsg             = tsg
         self.seg             = seg
         self.median_cnlr_seg = median_cnlr_seg
@@ -1444,17 +1443,15 @@ class FacetsSegment:
         self.chrom       = int(chrom)
         self.start       = int(start)
         self.end         = int(end)
-        self.cnlr_median = float(cnlr_median)
+        self.cnlr_median = float(cnlr_median) #These values are the same as the unadjusted.seg file so we did not use the unadjusted.seg file to open less files
         self.length      = int(max(end - start, start - end))
         self.cf          = float(cf)      #This API uses cf.em values for everything, so its just called cf here.
-        
         self.num_mark    = int(num_mark)
         self.nhet        = int(nhet)
         self.segclust    = int(segclust)
-        self.cnlr_median_clust= float(cnlr_median_clust)
-        self.adj_mean    = float(adj_mean)
+        self.cnlr_median_clust= float(cnlr_median_clust) 
         self.mafR  = float(mafR)
-        self.adj_mean = float(adj_mean)
+        self.adj_mean = float(adj_mean) #These values come from the adjusted.seg file
 
         try:
             self.cf_base = float(cf_base)
@@ -1515,7 +1512,7 @@ class FacetsSegment:
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " LCN (em): " + str(self.lcn))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Number Mark: " + str(self.num_mark))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Number Het: " + str(self.nhet))
-        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Unadj Median: " + str(self.cnlr_median))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Unadj Median: " + str(self.cnlr_median)) 
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Adj mean: " + str(self.adj_mean))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " mafR: " + str(self.mafR))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Segment Clust: " + str(self.segclust))
