@@ -81,7 +81,7 @@ class FacetsMeta:
         "Y": [1,12500000,12500001,59373566]
     }
 
-    def __init__(self, clinical_sample_file, facets_repo_path, hisens_vs_purity, persist_data="no"):
+    def __init__(self, clinical_sample_file = "", facets_repo_path = "/work/ccs/shared/resources/impact/facets/all/", hisens_vs_purity="purity", persist_data="no"):
         #Relevant path and file data.
         self.clinical_sample_file    = clinical_sample_file
         self.facets_repo_path        = facets_repo_path
@@ -89,7 +89,7 @@ class FacetsMeta:
         self.persist_data            = persist_data
 
         #Data structures and storage.
-        self.master_file_dict       = {} # A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir]}
+        self.master_file_dict       = {} # A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir, gene_file, adjseg_file]}
 
         #These come from data_clinical_sample.
         self.cancer_type_map        = {} # A map of sample ids to cancer types.
@@ -176,7 +176,6 @@ class FacetsMeta:
         print("|"+bcolors.OKBLUE+" \ \_\    \ \_\ \_\  \ \_____\  \ \_____\    \ \_\  \/\_____\ "+bcolors.OKCYAN+"    \ \_\ \_\  \ \_\    \ \_\ "+bcolors.ENDC+"|")
         print("|"+bcolors.OKBLUE+"  \/_/     \/_/\/_/   \/_____/   \/_____/     \/_/   \/_____/  "+bcolors.OKCYAN+"    \/_/\/_/   \/_/     \/_/ "+bcolors.ENDC+"|")
         print("~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~")
-
     ######################
     # parseClinicalSample:  This function will accept a clinical sample file and
     #                         scan each sample's corresponding facets directory.
@@ -196,30 +195,49 @@ class FacetsMeta:
 
         try:
             print("\tProcessing clinical data...")
-            clinical_df = pd.read_csv(self.clinical_sample_file, sep="\t", low_memory=False)
+            if self.clinical_sample_file=="":
+                startdir=self.facets_repo_path
+                target_ids = []
+                for item in os.listdir(startdir):
+                    #in directory that has dirs of 100 samples (P-00000)
+                    if os.path.isdir(startdir+item):
+                        for samplefolder in os.listdir(startdir+item):
+                            #In directory of sample directories 
+                            tumornorm = samplefolder.split("_")
+                            target_ids.append(samplefolder)
 
-            #Extract DMP id's for everything in our clinical sample file.
-            print("\t\tIdentifying samples from impact FACETS repository.")
+                if self.facets_repo_path!="/work/ccs/shared/resources/impact/facets/all/":
+                    print("\t\t No FACETS clinical sample file input, gathering IDs from {repo}".format(repo=facets_repo_path))
+                else:
+                    print("\t\t No FACETS clinical sample file input, gathering IDs from default facets repo at /work/ccs/shared/resources/impact/facets/all/")
 
-            target_ids           = clinical_df['SAMPLE_ID'].tolist()
-            patient_ids          = clinical_df['PATIENT_ID'].tolist()
-            cancer_types         = clinical_df['CANCER_TYPE'].tolist()
-            cancer_detail_types  = clinical_df['CANCER_TYPE_DETAILED'].tolist()
-            clin_purities        = clinical_df['TUMOR_PURITY'].tolist()
-            oncotree_codes       = clinical_df['ONCOTREE_CODE'].tolist()
-            tmb_scores           = clinical_df['CVR_TMB_SCORE'].tolist()
-            msi_scores           = clinical_df['MSI_SCORE'].tolist()
+            else:
+                
+                    
+                clinical_df = pd.read_csv(self.clinical_sample_file, sep="\t", low_memory=False)
 
-            #Build sample id maps associated with cancer type and patient ID.
-            print("\t\tCreating data to id maps.")
-            for i in range(len(target_ids)):
-                self.patient_id_map[target_ids[i]]         = patient_ids[i]
-                self.cancer_type_map[target_ids[i]]        = cancer_types[i]
-                self.cancer_type_detail_map[target_ids[i]] = cancer_detail_types[i]
-                self.clinical_purity_map[target_ids[i]]    = clin_purities[i]
-                self.onkotree_code_map[target_ids[i]]      = oncotree_codes[i]
-                self.cvr_tmb_score_map[target_ids[i]]      = tmb_scores[i]
-                self.msi_score_map[target_ids[i]]          = msi_scores[i]
+                #Extract DMP id's for everything in our clinical sample file.
+                print("\t\tIdentifying samples from impact FACETS repository.")
+
+                target_ids           = clinical_df['SAMPLE_ID'].tolist()
+                patient_ids          = clinical_df['PATIENT_ID'].tolist()
+                cancer_types         = clinical_df['CANCER_TYPE'].tolist()
+                cancer_detail_types  = clinical_df['CANCER_TYPE_DETAILED'].tolist()
+                clin_purities        = clinical_df['TUMOR_PURITY'].tolist()
+                oncotree_codes       = clinical_df['ONCOTREE_CODE'].tolist()
+                tmb_scores           = clinical_df['CVR_TMB_SCORE'].tolist()
+                msi_scores           = clinical_df['MSI_SCORE'].tolist()
+
+                #Build sample id maps associated with cancer type and patient ID.
+                print("\t\tCreating data to id maps.")
+                for i in range(len(target_ids)):
+                    self.patient_id_map[target_ids[i]]         = patient_ids[i]
+                    self.cancer_type_map[target_ids[i]]        = cancer_types[i]
+                    self.cancer_type_detail_map[target_ids[i]] = cancer_detail_types[i]
+                    self.clinical_purity_map[target_ids[i]]    = clin_purities[i]
+                    self.onkotree_code_map[target_ids[i]]      = oncotree_codes[i]
+                    self.cvr_tmb_score_map[target_ids[i]]      = tmb_scores[i]
+                    self.msi_score_map[target_ids[i]]          = msi_scores[i]
 
             #For each DMP id, confirm existence and build a set of relevant directories.
             if FacetsMeta.selectSingleRun:
@@ -291,21 +309,24 @@ class FacetsMeta:
                         cur_out   = ""
                         cur_cncf  = ""
                         gene_level_file = ""
+                        adjseg_file = ""
                         if self.hisens_vs_purity == "purity":
                             cur_out    = glob.glob(selected_fit_dir + "/*_purity.out")
                             cur_cncf   = glob.glob(selected_fit_dir + "/*_purity.cncf.txt")
+                            cur_adjseq = glob.glob(selected_fit_dir + "/*_purity_diplogR.adjusted.seg")
                         elif self.hisens_vs_purity == "hisens":
                             cur_out    = glob.glob(selected_fit_dir + "/*_hisens.out")
                             cur_cncf   = glob.glob(selected_fit_dir + "/*_hisens.cncf.txt")
+                            cur_adjseq = glob.glob(selected_fit_dir + "/*_hisens_diplogR.adjusted.seg")
                         else:
                             print("Error: hisens_vs_purity value should be 'hisens' or 'purity'.")
                             sys.exit()
 
                         cur_qc         = glob.glob(selected_fit_dir + "*qc.txt")
                         cur_gene_level = glob.glob(selected_fit_dir + "*gene_level.txt")
-
+                        
                         #If critical files are missing, skip the sample.
-                        if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level:
+                        if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level or not cur_adjseq:
                             num_missing = num_missing + 1
                             continue
                         else:
@@ -313,10 +334,11 @@ class FacetsMeta:
                             cncf_file       = cur_cncf[0]
                             qc_file         = cur_qc[0]
                             gene_level_file = cur_gene_level[0]
+                            adjseg_file     = cur_adjseq[0]
 
                         self.long_id_map[id]   = [id_with_normal]
-                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file]
-
+                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file]
+                        # break
                     #If we want to read in all fits for each sample, we need to iterate the manifest and build each one out.
                     else:
                         cur_run_list = []
@@ -331,6 +353,7 @@ class FacetsMeta:
                             cur_out   = ""
                             cur_cncf  = ""
                             gene_level_file = ""
+                            adjseg_file = ""
 
                             #Handle cases where the path doesn't properly end with a / character.
                             cur_sample_folder = row['path']
@@ -342,9 +365,12 @@ class FacetsMeta:
                             if self.hisens_vs_purity == "purity":
                                 cur_out    = glob.glob(cur_fit_folder + "*_purity.out")
                                 cur_cncf   = glob.glob(cur_fit_folder + "*_purity.cncf.txt")
+                                cur_adjseq = glob.glob(cur_fit_folder + "/*_purity_diplogR.adjusted.seg")
                             elif self.hisens_vs_purity == "hisens":
                                 cur_out    = glob.glob(cur_fit_folder + "*_hisens.out")
                                 cur_cncf   = glob.glob(cur_fit_folder + "*_hisens.cncf.txt")
+                                cur_adjseq = glob.glob(cur_fit_folder + "/*_hisens_diplogR.adjusted.seg")
+
                             else:
                                 print("Error: hisens_vs_purity value should be 'hisens' or 'purity'.")
                                 sys.exit()
@@ -353,7 +379,7 @@ class FacetsMeta:
                             cur_gene_level = glob.glob(cur_fit_folder + "*gene_level.txt")
 
                             #If critical files are missing, skip the sample.
-                            if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level:
+                            if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level or not cur_adjseq:
                                 num_missing = num_missing + 1
                                 continue
                             else:
@@ -361,9 +387,10 @@ class FacetsMeta:
                                 cncf_file       = cur_cncf[0]
                                 qc_file         = cur_qc[0]
                                 gene_level_file = cur_gene_level[0]
+                                adjseg_file     = cur_adjseq[0]
 
                             cur_run_list.append(long_id)
-                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file]
+                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file]
 
                         self.long_id_map[id] = cur_run_list
 
@@ -385,7 +412,6 @@ class FacetsMeta:
             print (e)
             print (bcolors.ENDC)
             sys.exit()
-
 
 
 ######################
@@ -829,10 +855,10 @@ class FacetsDataset:
             num_build_failed      = 0
             num_file_failed       = 0
             print("\tApplying filtering and building FacetsDataset beginning with " + str(len(facets_metadata.master_file_dict)) + " samples.")
-
+            # print(facets_metadata.master_file_dict)
             #Go through our master file dictionary and build facets sample objects.
             for key in facets_metadata.master_file_dict.keys():
-                #print(key)
+                # print(key)
                 if total_samples_prepped % 1000 == 0 and total_samples_prepped != 0:
                     print("\t\tSamples Processed: " + str(total_samples_prepped))
 
@@ -1349,18 +1375,29 @@ class FacetsDataset:
 # FacetsGene:    This class represents a single facets gene as represented in the gene_level.txt file.
 ######################
 class FacetsGene:
-    def __init__(self, gene, gene_start, gene_end, seg_start, seg_end, seg_length, cf, tcn, lcn, cn_state, filter):
-        self.gene       = gene
-        self.gene_start = gene_start
-        self.gene_end   = gene_end
-        self.seg_start  = seg_start
-        self.seg_end    = seg_end
-        self.seg_length = seg_length
-        self.cf         = cf
-        self.tcn        = tcn
-        self.lcn        = lcn
-        self.cn_state   = cn_state
-        self.filter     = filter
+    def __init__(self, gene, gene_start, gene_end, seg_start, seg_end, seg_length, cf, tcn, lcn, cn_state, filter, tsg, seg, median_cnlr_seg, segclust, mcn, genes_on_seg, gene_snps, gene_het_snps, spans_segs):
+        self.gene            = gene
+        self.gene_start      = gene_start
+        self.gene_end        = gene_end
+        self.seg_start       = seg_start
+        self.seg_end         = seg_end
+        self.seg_length      = seg_length
+        self.cf              = cf
+        self.tcn             = tcn
+        self.lcn             = lcn
+        self.cn_state        = cn_state
+        self.filter          = filter
+        self.tsg             = tsg
+        self.seg             = seg
+        self.median_cnlr_seg = median_cnlr_seg
+        self.segclust        = segclust
+        self.mcn             = mcn
+        self.genes_on_seg    = genes_on_seg
+        self.gene_snps       = gene_snps
+        self.gene_het_snps   = gene_het_snps
+        self.spans_segs      = spans_segs
+
+
 
     #Print data about this gene.
     def printGene(self):
@@ -1375,6 +1412,15 @@ class FacetsGene:
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " TCN: " + str(self.tcn))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " LCN: " + str(self.lcn))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Filter: " + str(self.filter))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " TSG: " + str(self.cf))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Segment: " + str(self.seg))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Median cnlr Segment: " + str(self.median_cnlr_seg))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Segment Cluster: " + str(self.segclust))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " MCN: " + str(self.mcn))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Genes on Segement: " + str(self.mcn))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Gene SNPs " + str(self.gene_snps))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Gene het SNPs: " + str(self.gene_het_snps))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Span Segments: " + str(self.spans_segs))
         print(bcolors.BOLD + "\t~-===--===--===--===--===--===--===--===-~" + bcolors.ENDC)
 
     #Compare two genes.  If they are the same return true.
@@ -1405,19 +1451,26 @@ class FacetsSegment:
     percent_arm_loh      = 50.0 # This is the percentage of the arm that needs to be LCN=0 to make an arm level LOH call.
     min_gain_tcn         = 4    # This is the minimum value of TCN required to consider a segment to be a Gain call.
     percent_arm_gain     = 50.0 # This is the percentage of the arm that needs to be TCN=min_gain_tcn to make an arm level Gain call.
+    
 
-    def __init__(self, chrom, start, end, cnlr_median, cf, cf_base, tcn, lcn):
+
+    def __init__(self, chrom, start, end, cnlr_median, cf, cf_base, tcn, lcn, num_mark, nhet, mafR, segclust, cnlr_median_clust, mafR_clust, adj_mean):
         # These values are calculated in FacetsRun.defineArms().
         self.arm         = "undefined" # This is the chr/arm.  I.E. 1p, 5q, etc.
         self.percentArm  = -1          # This is the percentage of the arm that this segment covers. 
-
         self.chrom       = int(chrom)
         self.start       = int(start)
         self.end         = int(end)
-        self.cnlr_median = float(cnlr_median)
+        self.cnlr_median = float(cnlr_median) #These values are the same as the unadjusted.seg file so we did not use the unadjusted.seg file to open less files
         self.length      = int(max(end - start, start - end))
         self.cf          = float(cf)      #This API uses cf.em values for everything, so its just called cf here.
-        
+        self.num_mark    = int(num_mark)
+        self.nhet        = int(nhet)
+        self.segclust    = int(segclust)
+        self.cnlr_median_clust= float(cnlr_median_clust) 
+        self.mafR  = float(mafR)
+        self.adj_mean = float(adj_mean) #These values come from the adjusted.seg file
+
         try:
             self.cf_base = float(cf_base)
         except ValueError:
@@ -1425,6 +1478,12 @@ class FacetsSegment:
                 self.cf_base = int(cf_base)
             except ValueError:
                 self.cf_base = -1
+
+        if pd.isna(mafR_clust):
+            self.mafR_clust     = 0
+        else:
+            self.mafR_clust     = float(mafR_clust)
+
 
         if pd.isna(tcn):
             self.tcn     = -1
@@ -1469,6 +1528,13 @@ class FacetsSegment:
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " CF (em): " + str(self.cf))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " TCN (em): " + str(self.tcn))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " LCN (em): " + str(self.lcn))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Number Mark: " + str(self.num_mark))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Number Het: " + str(self.nhet))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Unadj Median: " + str(self.cnlr_median)) 
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Adj mean: " + str(self.adj_mean))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " mafR: " + str(self.mafR))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " Segment Clust: " + str(self.segclust))
+        print(bcolors.BOLD + "\t|" + bcolors.ENDC + " cnlr_median_clust: " + str(self.cnlr_median_clust))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " isLoH: " + str(self.isLoH))
         print(bcolors.BOLD + "\t|" + bcolors.ENDC + " isGain: " + str(self.isGain))
         print(bcolors.BOLD + "\t~-===--===--===--===--===--===--===--===-~" + bcolors.ENDC)
@@ -2349,7 +2415,11 @@ class FacetsRun:
                 cur_gene_level_data.append([gene_level_df['gene'][index], gene_level_df['gene_start'][index], gene_level_df
                                             ['gene_end'][index], gene_level_df['seg_start'][index], gene_level_df['seg_end'][index], 
                                             gene_level_df['seg_length'][index], gene_level_df['cf.em'][index], gene_level_df['tcn.em'][index], 
-                                            gene_level_df['lcn.em'][index], gene_level_df['cn_state'][index], gene_level_df['filter'][index]])
+                                            gene_level_df['lcn.em'][index], gene_level_df['cn_state'][index], gene_level_df['filter'][index],
+                                            gene_level_df['tsg'][index], gene_level_df['seg'][index], gene_level_df['median_cnlr_seg'][index],
+                                            gene_level_df['segclust'][index], gene_level_df['mcn'][index], gene_level_df['genes_on_seg'][index],
+                                            gene_level_df['gene_snps'][index], gene_level_df['gene_het_snps'][index], gene_level_df['spans_segs'][index],
+                                            ])
             
             return cur_gene_level_data
 
@@ -2435,19 +2505,32 @@ class FacetsRun:
     #                 It will build and return a list of FacetsSegment type objects representing the CNCF.
     ######################
     @staticmethod
-    def parseCNCF(cncf_file):
+    def parseCNCF(cncf_file,adjseg):
         try:
             cncf_df = pd.read_csv(cncf_file, sep="\t", low_memory=False)
+            seg_df = pd.read_csv(adjseg, sep="\t", low_memory=False)
+
+
 
             #Extract the relevant columns.
             chrom       = cncf_df['chrom'].tolist()
             loc_start   = cncf_df['loc.start'].tolist()
             loc_end     = cncf_df['loc.end'].tolist()
-            clnr_median = cncf_df['cnlr.median'].tolist()
+            cnlr_median = cncf_df['cnlr.median'].tolist()
+
             cf_em       = cncf_df['cf.em'].tolist()
             cf_base     = cncf_df['cf'].tolist()
             tcn_em      = cncf_df['tcn.em'].tolist()
             lcn_em      = cncf_df['lcn.em'].tolist()
+            num_mark    = cncf_df['num.mark'].tolist()
+            nhet        = cncf_df['nhet'].tolist()
+            mafR        = cncf_df['mafR'].tolist()
+            segclust    = cncf_df['segclust'].tolist()
+            cnlr_median_clust     = cncf_df['cnlr.median.clust'].tolist()
+            mafR_clust  = cncf_df['mafR.clust'].tolist()
+            # print(seq_df['seg.mean'].tolist())
+            adj_mean    = seg_df['seg.mean'].tolist()
+
 
             #Build a FacetsSegment object for each row.
             seg_list = []
@@ -2455,18 +2538,26 @@ class FacetsRun:
                 cur_seg = FacetsSegment(chrom[i],
                                         loc_start[i],
                                         loc_end[i],
-                                        clnr_median[i],
+                                        cnlr_median[i],
                                         cf_em[i],
                                         cf_base[i],
                                         tcn_em[i],
-                                        lcn_em[i])
+                                        lcn_em[i],
+                                        num_mark[i],
+                                        nhet[i],
+                                        mafR[i],
+                                        segclust[i],
+                                        cnlr_median_clust[i],
+                                        mafR_clust[i],
+                                        adj_mean[i]
+                                        )
                 seg_list.append(cur_seg)
 
             return seg_list
 
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError processing clinical data. Terminating execution.")
+            print ("\t\tError processing clinical data (parseCNCF). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
@@ -2580,7 +2671,7 @@ class FacetsRun:
                                             FacetsMeta.hisens_vs_purity)
             
             #Now build in the segments from the CNCF file.
-            segments = FacetsRun.parseCNCF(cur_dir_map[1])
+            segments = FacetsRun.parseCNCF(cur_dir_map[1],cur_dir_map[6])
             for i in range(len(segments)):
                 if str(segments[i].cf) == "nan" or str(segments[i].cf_base) == "nan":
                     continue
@@ -2599,7 +2690,18 @@ class FacetsRun:
                                         curGene[7],
                                         curGene[8],
                                         curGene[9],
-                                        curGene[10])
+                                        ###
+                                        curGene[10],
+                                        curGene[11],
+                                        curGene[12],
+                                        curGene[13],
+                                        curGene[14],
+                                        curGene[15],
+                                        curGene[16],
+                                        curGene[17],
+                                        curGene[18],
+                                        curGene[19],
+                                        )
 
                 cur_facets_sample.addGene(geneToAdd)
 
