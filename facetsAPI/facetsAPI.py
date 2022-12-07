@@ -196,7 +196,7 @@ class FacetsMeta:
         try:
             print("\tProcessing clinical data...")
             if self.clinical_sample_file=="":
-                startdir="/work/ccs/shared/resources/impact/facets/all/"
+                startdir=self.facets_repo_path
                 target_ids = []
                 for item in os.listdir(startdir):
                     #in directory that has dirs of 100 samples (P-00000)

@@ -1,8 +1,8 @@
 import sys
 
 #change this to wherever the facetsAPI is stored
-# sys.path.insert(1, '/juno/work/ccs/pricea2/pipelines/facetsAPI')
-sys.path.insert(1, '/juno/work/ccs/orgeraj/facetsAPI')
+sys.path.insert(1, '/juno/work/ccs/pricea2/pipelines/facetsAPI')
+# sys.path.insert(1, '/juno/work/ccs/orgeraj/facetsAPI')
 
 from facetsAPI import *
 
