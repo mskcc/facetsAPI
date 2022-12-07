@@ -81,12 +81,18 @@ class FacetsMeta:
         "Y": [1,12500000,12500001,59373566]
     }
 
-    def __init__(self, clinical_sample_file = "", facets_repo_path = "/work/ccs/shared/resources/impact/facets/all/", hisens_vs_purity="purity", persist_data="no"):
+    def __init__(self, clinical_sample_file = "", facets_repo_path = "", hisens_vs_purity="purity", persist_data="no"):
         #Relevant path and file data.
         self.clinical_sample_file    = clinical_sample_file
         self.facets_repo_path        = facets_repo_path
         self.hisens_vs_purity        = hisens_vs_purity
         self.persist_data            = persist_data
+
+        self.hasClinicalMeta = False
+        if clinical_sample_file == "":
+            self.hasClinicalMeta = False
+        else:
+            self.hasClinicalMeta = True
 
         #Data structures and storage.
         self.master_file_dict       = {} # A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir, gene_file, adjseg_file]}
@@ -195,25 +201,24 @@ class FacetsMeta:
 
         try:
             print("\tProcessing clinical data...")
-            if self.clinical_sample_file=="":
+            if self.facets_repo_path == "":
+                print (bcolors.FAIL)
+                print("Error in FacetsMeta.parseClinicalSample(): Facets repo path is not supplied. ")
+                print (bcolors.ENDC)
+                sys.exit()
+
+            #If there is no clinical sample file, 
+            #we just want to build the FacetsMeta object by browsing the directory stucture.
+            if self.clinical_sample_file == "":
                 startdir=self.facets_repo_path
+                print(bcolors.WARNING + "\t\tWarning: No data clinical sample file was provided. ")
+                print("\t\t\tUsing FACETS directory structure to build FacetsMeta object: " + startdir + " " + bcolors.ENDC)
                 target_ids = []
                 for item in os.listdir(startdir):
-                    #in directory that has dirs of 100 samples (P-00000)
                     if os.path.isdir(startdir+item):
                         for samplefolder in os.listdir(startdir+item):
-                            #In directory of sample directories 
-                            tumornorm = samplefolder.split("_")
                             target_ids.append(samplefolder)
-
-                if self.facets_repo_path!="/work/ccs/shared/resources/impact/facets/all/":
-                    print("\t\t No FACETS clinical sample file input, gathering IDs from {repo}".format(repo=facets_repo_path))
-                else:
-                    print("\t\t No FACETS clinical sample file input, gathering IDs from default facets repo at /work/ccs/shared/resources/impact/facets/all/")
-
             else:
-                
-                    
                 clinical_df = pd.read_csv(self.clinical_sample_file, sep="\t", low_memory=False)
 
                 #Extract DMP id's for everything in our clinical sample file.
@@ -338,7 +343,8 @@ class FacetsMeta:
 
                         self.long_id_map[id]   = [id_with_normal]
                         self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file]
-                        # break
+                        #print(str([out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file]))
+                        #break
                     #If we want to read in all fits for each sample, we need to iterate the manifest and build each one out.
                     else:
                         cur_run_list = []
@@ -391,8 +397,12 @@ class FacetsMeta:
 
                             cur_run_list.append(long_id)
                             self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file]
-
+                            #print(str([out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file]))
+                            #sys.exit()
                         self.long_id_map[id] = cur_run_list
+
+            #print(self.master_file_dict)
+            #sys.exit()
 
             if FacetsMeta.selectSingleRun:
                 print("\tSelecting single FacetsRun per FacetsSample.")
@@ -419,11 +429,11 @@ class FacetsMeta:
 #                   writing output, and modifying/creating file structures.
 ######################
 class FacetsDataset:
-    def __init__(self):
+    def __init__(self, facets_meta):
         self.sampleList = {}
         self.runList = []
         self.numSamples = 0
-        self.ref_facetsMeta = None
+        self.ref_facetsMeta = facets_meta
 
         self.filterCancerType = False
         self.selectedCancerTypes = []
@@ -841,44 +851,42 @@ class FacetsDataset:
 
 
     #This function will build a facets data set using whatever filters are set.
-    def buildFacetsDataset(self, facets_metadata):
+    def buildFacetsDataset(self):
         try:
-            if not isinstance(facets_metadata, FacetsMeta):
+            if not isinstance(self.ref_facetsMeta, FacetsMeta):
                 print (bcolors.FAIL)
                 print("Error in FacetsDataset.buildFacetsDataset(): buildFacetsDataset must be an initialized object of type FacetsMeta.")
                 print (bcolors.ENDC)
                 sys.exit()
 
-            self.ref_facetsMeta = facets_metadata
-
             total_samples_prepped = 0
             num_build_failed      = 0
             num_file_failed       = 0
-            print("\tApplying filtering and building FacetsDataset beginning with " + str(len(facets_metadata.master_file_dict)) + " samples.")
-            # print(facets_metadata.master_file_dict)
+            print("\tApplying filtering and building FacetsDataset beginning with " + str(len(self.ref_facetsMeta.master_file_dict)) + " samples.")
+
             #Go through our master file dictionary and build facets sample objects.
-            for key in facets_metadata.master_file_dict.keys():
-                # print(key)
+            for key in self.ref_facetsMeta.master_file_dict.keys():
+                print(key)
                 if total_samples_prepped % 1000 == 0 and total_samples_prepped != 0:
                     print("\t\tSamples Processed: " + str(total_samples_prepped))
 
-                cur_dir_map = facets_metadata.master_file_dict.get(key)
+                cur_dir_map = self.ref_facetsMeta.master_file_dict.get(key)
 
                 #CancerType Filter.
                 if self.filterCancerType:
-                    curCancerType = facets_metadata.cancer_type_map.get(key)
+                    curCancerType = self.ref_facetsMeta.cancer_type_map.get(key)
                     if curCancerType not in self.selectedCancerTypes:
                         continue
 
                 #CancerTypeDetail Filter.
                 if self.filterCancerTypeDetail:
-                    curCancerDetailType = facets_metadata.cancer_type_detail_map.get(key)
+                    curCancerDetailType = self.ref_facetsMeta.cancer_type_detail_map.get(key)
                     if curCancerDetailType not in self.curCancerDetailType:
                         continue
 
                 #Clinical Purity Filter.
                 if self.filterClinicalPurity:
-                    curClinPurity = facets_metadata.clinical_purity_map.get(key)
+                    curClinPurity = self.ref_facetsMeta.clinical_purity_map.get(key)
                     if curClinPurity == "NA":
                         continue
                     curClinPurity = float(curClinPurity)
@@ -887,13 +895,13 @@ class FacetsDataset:
 
                 #OnkoCode Filter.
                 if self.filterOnkoCode:
-                    curOnkoCode = facets_metadata.onkotree_code_map.get(key)
+                    curOnkoCode = self.ref_facetsMeta.onkotree_code_map.get(key)
                     if curOnkoCode not in self.selectedOnkoCodes:
                         continue
 
                 #TMB Filter.
                 if self.filterTMB:
-                    cur_tmb = facets_metadata.cvr_tmb_score_map.get(key)
+                    cur_tmb = self.ref_facetsMeta.cvr_tmb_score_map.get(key)
                     if cur_tmb == "NA":
                         continue
                     cur_tmb = float(cur_tmb)
@@ -902,7 +910,7 @@ class FacetsDataset:
 
                 #MSI Filter.
                 if self.filterMSI:
-                    cur_msi = facets_metadata.msi_score_map.get(key)
+                    cur_msi = self.ref_facetsMeta.msi_score_map.get(key)
                     if cur_msi == "NA":
                         continue
                     cur_msi = float(cur_msi)
@@ -1010,13 +1018,14 @@ class FacetsDataset:
                             continue
 
                 #We've passed all filters, we can build the FacetsRun and FacetsSample for this sample.
-                cur_run = FacetsRun.buildFacetsRun(key,facets_metadata)
+                cur_run = FacetsRun.buildFacetsRun(key,self.ref_facetsMeta)
                 if cur_run is False:
                     num_build_failed += 1
                     continue
                 else:
                     cur_sample_id = ""
                     if FacetsMeta.selectSingleRun:
+                        #print("SingleRun - " + str(key))
                         cur_sample_id = key
                         if cur_sample_id in self.ref_facetsMeta.long_id_map:
                             cur_long_id = self.ref_facetsMeta.long_id_map.get(cur_sample_id)[0]
@@ -1028,7 +1037,8 @@ class FacetsDataset:
                                 cur_sample.addRun(cur_run)
                                 self.sampleList[cur_long_id] = cur_sample
 
-                                cur_sample.printSample()
+                                #cur_sample.printSample()
+                                #sys.exit()
                         else:
                             print (bcolors.FAIL)
                             print ("\t\tError in FacetsDataset.buildFacetsDataset(). No long id found for " + str(key))
@@ -1036,6 +1046,7 @@ class FacetsDataset:
                             print (bcolors.ENDC)
                             sys.exit()
                     else:
+                        #print("Multirun - " + str(key))
                         #When we use all runs in a sample, we are using long id (ID_runID, i.e. P-0000067-T01-IM3_P-0000067-N01-IM3#altDiplogR-02).
                         #We are splitting for now on that # character to get the short id.
                         cur_sample_id = key.split('#')[0]
@@ -1055,7 +1066,6 @@ class FacetsDataset:
             print("\t\t" + str(num_file_failed) + " samples failed due to file formatting errors.")
             print("\t\t" + str(num_build_failed) + " samples failed during FacetsRun object construction.")
 
-
         except Exception as e:
             print (bcolors.FAIL)
             print ("\t\tError in FacetsDataset.buildFacetsDataset(). Terminating execution.")
@@ -1067,6 +1077,12 @@ class FacetsDataset:
     #This function sets a cancer type filter.  The selectedCancerTypes parameter should be a list of strings.
     def setCancerTypeFilter(self,selectedCancerTypes):
         try:
+            if not self.ref_facetsMeta.hasClinicalMeta:
+                print (bcolors.FAIL)
+                print("Error in FacetsDataset.selectedCancerTypes(): Clinical data was not provided for this run. ")
+                print("Cannot apply this filter without clinical metadata.  Provide a data_clinical_sample file or remove this filter.")
+                print (bcolors.ENDC)
+                sys.exit()
             if not isinstance(selectedCancerTypes, list):
                 print (bcolors.FAIL)
                 print("Error in FacetsDataset.selectedCancerTypes(): selectedCancerTypes must be a list of string values. ")
@@ -1085,6 +1101,12 @@ class FacetsDataset:
     #This function sets a cancer type detail filter.  The selectedCancerDetailTypes parameter should be a list of strings.
     def setCancerTypeDetailFilter(self,selectedCancerDetailTypes):
         try:
+            if not self.ref_facetsMeta.hasClinicalMeta:
+                print (bcolors.FAIL)
+                print("Error in FacetsDataset.setCancerTypeDetailFilter(): Clinical data was not provided for this run. ")
+                print("Cannot apply this filter without clinical metadata.  Provide a data_clinical_sample file or remove this filter.")
+                print (bcolors.ENDC)
+                sys.exit()
             if not isinstance(selectedCancerDetailTypes, list):
                 print (bcolors.FAIL)
                 print("Error in FacetsDataset.setCancerTypeDetailFilter(): selectedCancerDetailTypes must be a list of string values. ")
@@ -1127,6 +1149,12 @@ class FacetsDataset:
     #This function sets a clinical purity filter.  The selectedCancerDetailTypes parameter should be a list of strings.
     def setClinicalPurityFilter(self, minClinPurity, maxClinPurity=1.0):
         try:
+            if not self.ref_facetsMeta.hasClinicalMeta:
+                print (bcolors.FAIL)
+                print("Error in FacetsDataset.setClinicalPurityFilter(): Clinical data was not provided for this run. ")
+                print("Cannot apply this filter without clinical metadata.  Provide a data_clinical_sample file or remove this filter.")
+                print (bcolors.ENDC)
+                sys.exit()
             if not (isinstance(minClinPurity, float) or isinstance(minClinPurity, int)):
                 print (bcolors.FAIL)
                 print("Error in FacetsDataset.setClinicalPurityFilter(): minClinPurity must be a numeric value. ")
@@ -1151,6 +1179,12 @@ class FacetsDataset:
     #This function sets a onkoCode filter.  The selectedOnkoCodes parameter should be a list of strings.
     def setOnkoCodeFilter(self, selectedOnkoCodes):
         try:
+            if not self.ref_facetsMeta.hasClinicalMeta:
+                print (bcolors.FAIL)
+                print("Error in FacetsDataset.setOnkoCodeFilter(): Clinical data was not provided for this run. ")
+                print("Cannot apply this filter without clinical metadata.  Provide a data_clinical_sample file or remove this filter.")
+                print (bcolors.ENDC)
+                sys.exit()
             if not isinstance(selectedOnkoCodes, list):
                 print (bcolors.FAIL)
                 print("Error in FacetsDataset.setOnkoCodeFilter(): selectedOnkoCodes must be a list of string values. ")
@@ -1325,6 +1359,12 @@ class FacetsDataset:
     #This function sets a TMB filter.  The min and max parameters should be numeric.
     def setTMBFilter(self, minTMB, maxTMB):
         try:
+            if not self.ref_facetsMeta.hasClinicalMeta:
+                print (bcolors.FAIL)
+                print("Error in FacetsDataset.setTMBFilter(): Clinical data was not provided for this run. ")
+                print("Cannot apply this filter without clinical metadata.  Provide a data_clinical_sample file or remove this filter.")
+                print (bcolors.ENDC)
+                sys.exit()
             if not (isinstance(minTMB, float) or isinstance(minTMB, int)):
                 print (bcolors.FAIL)
                 print("Error in FacetsDataset.setTMBFilter(): minTMB must be a numeric value. ")
@@ -1349,6 +1389,12 @@ class FacetsDataset:
     #This function sets a MSI filter.  The min and max parameters should be numeric.
     def setMSIFilter(self, minMSI, maxMSI):
         try:
+            if not self.ref_facetsMeta.hasClinicalMeta:
+                print (bcolors.FAIL)
+                print("Error in FacetsDataset.setMSIFilter(): Clinical data was not provided for this run. ")
+                print("Cannot apply this filter without clinical metadata.  Provide a data_clinical_sample file or remove this filter.")
+                print (bcolors.ENDC)
+                sys.exit()
             if not (isinstance(minMSI, float) or isinstance(minMSI, int)):
                 print (bcolors.FAIL)
                 print("Error in FacetsDataset.setMSIFilter(): minMSI must be a numeric value. ")
