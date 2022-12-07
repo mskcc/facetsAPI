@@ -81,7 +81,7 @@ class FacetsMeta:
         "Y": [1,12500000,12500001,59373566]
     }
 
-    def __init__(self, clinical_sample_file, facets_repo_path, hisens_vs_purity, persist_data="no"):
+    def __init__(self, clinical_sample_file = "", facets_repo_path = "/work/ccs/shared/resources/impact/facets/all/", hisens_vs_purity="purity", persist_data="no"):
         #Relevant path and file data.
         self.clinical_sample_file    = clinical_sample_file
         self.facets_repo_path        = facets_repo_path
@@ -195,30 +195,49 @@ class FacetsMeta:
 
         try:
             print("\tProcessing clinical data...")
-            clinical_df = pd.read_csv(self.clinical_sample_file, sep="\t", low_memory=False)
+            if self.clinical_sample_file=="":
+                startdir="/work/ccs/shared/resources/impact/facets/all/"
+                target_ids = []
+                for item in os.listdir(startdir):
+                    #in directory that has dirs of 100 samples (P-00000)
+                    if os.path.isdir(startdir+item):
+                        for samplefolder in os.listdir(startdir+item):
+                            #In directory of sample directories 
+                            tumornorm = samplefolder.split("_")
+                            target_ids.append(samplefolder)
 
-            #Extract DMP id's for everything in our clinical sample file.
-            print("\t\tIdentifying samples from impact FACETS repository.")
+                if self.facets_repo_path!="/work/ccs/shared/resources/impact/facets/all/":
+                    print("\t\t No FACETS clinical sample file input, gathering IDs from {repo}".format(repo=facets_repo_path))
+                else:
+                    print("\t\t No FACETS clinical sample file input, gathering IDs from default facets repo at /work/ccs/shared/resources/impact/facets/all/")
 
-            target_ids           = clinical_df['SAMPLE_ID'].tolist()
-            patient_ids          = clinical_df['PATIENT_ID'].tolist()
-            cancer_types         = clinical_df['CANCER_TYPE'].tolist()
-            cancer_detail_types  = clinical_df['CANCER_TYPE_DETAILED'].tolist()
-            clin_purities        = clinical_df['TUMOR_PURITY'].tolist()
-            oncotree_codes       = clinical_df['ONCOTREE_CODE'].tolist()
-            tmb_scores           = clinical_df['CVR_TMB_SCORE'].tolist()
-            msi_scores           = clinical_df['MSI_SCORE'].tolist()
+            else:
+                
+                    
+                clinical_df = pd.read_csv(self.clinical_sample_file, sep="\t", low_memory=False)
 
-            #Build sample id maps associated with cancer type and patient ID.
-            print("\t\tCreating data to id maps.")
-            for i in range(len(target_ids)):
-                self.patient_id_map[target_ids[i]]         = patient_ids[i]
-                self.cancer_type_map[target_ids[i]]        = cancer_types[i]
-                self.cancer_type_detail_map[target_ids[i]] = cancer_detail_types[i]
-                self.clinical_purity_map[target_ids[i]]    = clin_purities[i]
-                self.onkotree_code_map[target_ids[i]]      = oncotree_codes[i]
-                self.cvr_tmb_score_map[target_ids[i]]      = tmb_scores[i]
-                self.msi_score_map[target_ids[i]]          = msi_scores[i]
+                #Extract DMP id's for everything in our clinical sample file.
+                print("\t\tIdentifying samples from impact FACETS repository.")
+
+                target_ids           = clinical_df['SAMPLE_ID'].tolist()
+                patient_ids          = clinical_df['PATIENT_ID'].tolist()
+                cancer_types         = clinical_df['CANCER_TYPE'].tolist()
+                cancer_detail_types  = clinical_df['CANCER_TYPE_DETAILED'].tolist()
+                clin_purities        = clinical_df['TUMOR_PURITY'].tolist()
+                oncotree_codes       = clinical_df['ONCOTREE_CODE'].tolist()
+                tmb_scores           = clinical_df['CVR_TMB_SCORE'].tolist()
+                msi_scores           = clinical_df['MSI_SCORE'].tolist()
+
+                #Build sample id maps associated with cancer type and patient ID.
+                print("\t\tCreating data to id maps.")
+                for i in range(len(target_ids)):
+                    self.patient_id_map[target_ids[i]]         = patient_ids[i]
+                    self.cancer_type_map[target_ids[i]]        = cancer_types[i]
+                    self.cancer_type_detail_map[target_ids[i]] = cancer_detail_types[i]
+                    self.clinical_purity_map[target_ids[i]]    = clin_purities[i]
+                    self.onkotree_code_map[target_ids[i]]      = oncotree_codes[i]
+                    self.cvr_tmb_score_map[target_ids[i]]      = tmb_scores[i]
+                    self.msi_score_map[target_ids[i]]          = msi_scores[i]
 
             #For each DMP id, confirm existence and build a set of relevant directories.
             if FacetsMeta.selectSingleRun:
@@ -319,7 +338,7 @@ class FacetsMeta:
 
                         self.long_id_map[id]   = [id_with_normal]
                         self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file]
-                        
+                        # break
                     #If we want to read in all fits for each sample, we need to iterate the manifest and build each one out.
                     else:
                         cur_run_list = []
@@ -393,7 +412,6 @@ class FacetsMeta:
             print (e)
             print (bcolors.ENDC)
             sys.exit()
-
 
 
 ######################
@@ -837,10 +855,10 @@ class FacetsDataset:
             num_build_failed      = 0
             num_file_failed       = 0
             print("\tApplying filtering and building FacetsDataset beginning with " + str(len(facets_metadata.master_file_dict)) + " samples.")
-
+            # print(facets_metadata.master_file_dict)
             #Go through our master file dictionary and build facets sample objects.
             for key in facets_metadata.master_file_dict.keys():
-                #print(key)
+                # print(key)
                 if total_samples_prepped % 1000 == 0 and total_samples_prepped != 0:
                     print("\t\tSamples Processed: " + str(total_samples_prepped))
 
