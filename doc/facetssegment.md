@@ -37,3 +37,7 @@ The following variables are available in a FacetsSegment object.
 
 
 #### Functions
+* compareSegments(segToCompare):
+  * This function will compare a segment with the segment provided as a parameter.  If they have the same start, end, and chrom, this function returns True.  
+* printSegment()
+  * This function will print a report for the given segment. 
