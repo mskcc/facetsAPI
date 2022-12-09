@@ -1,4 +1,5 @@
 import sys
+import os
 
 #change this to wherever the facetsAPI is stored
 sys.path.insert(1, '/juno/work/ccs/pricea2/pipelines/facetsAPI')
@@ -72,12 +73,49 @@ def test_facetsPurityByCF():
     test_dataset.writePurityCFs("cfPurity_hisens_base.txt", True)
     test_dataset.writePurityCFs("cfPurity_hisens_cfEm.txt", False)
 
+def test_fpTools(useSingleRun, allowDefaults):
+    clinical_sample_file  = ""#"/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"
+    #facets_dir            = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/run_11-14-22/facets/fix_alt/all/"
+    facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
+
+    prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
+    prepared_metadata.setSingleRunPerSample(useSingleRun,allowDefaults)
+    prepared_metadata.buildFacetsMeta()
+
+    fp_config = "/juno/work/ccs/bandlamc/git/ccs-cron/impact_facets/config_facets_preview.json"
+    cbio_maf = "/work/ccs/shared/resources/impact/cbio_mutations/data_mutations_extended.oncokb.vep.maf"
+    cbio_nonsigned_maf = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/run_11-14-22/cbio_mutations/data_mutations_nonsignedout.vep.maf"
+    
+    fp_tools = FPTools(fp_config, cbio_maf, cbio_nonsigned_maf)
+    fp_tools.loadModule("R/R-3.6.3")
+
+    for key in prepared_metadata.master_file_dict:
+        cur_files = prepared_metadata.master_file_dict.get(key)
+        cur_long_id = key.split('#')[0]
+        cur_short_id = cur_long_id.split('_')[0]
+        cur_ccf_maf = cur_files[7]
+        cur_nonsigned_maf = cur_files[8]
+        cur_path = os.path.dirname(cur_files[3]) + "/"
+    
+        if cur_ccf_maf == "" or cur_nonsigned_maf == "":
+            print("\t\t\tRunning FacetsPreview generate_genomic_annotations() for " + key)
+            fp_tools.runGenerateGenomicAnnotations(cur_short_id, cur_long_id, cur_path)
+
+
+        #print(cur_files)
+        #print(cur_long_id)
+        #print(cur_files[7])
+        #print(cur_files[8])
+        #sys.exit()
+
+
+
 
 if __name__ == '__main__':
-
-    clinical_sample_file  = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"
-    facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
-    test_facetsMeta(False, False)
+    #clinical_sample_file  = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"
+    #facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
+    test_fpTools(False, False)
+    #test_facetsMeta(False, False)
     #test_facetsDataset(True, True)
     #test_alterationFunctions(False, False)
     #test_facetsPurityByCF()
