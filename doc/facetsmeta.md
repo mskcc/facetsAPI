@@ -7,14 +7,14 @@ files and folders in the FACETS repository.
 ### Initializing FacetsMeta
 
 The initialization function of a FacetsMeta class requires 4 parameters:
-* Data clinical sample file path.
+* Data clinical sample file path. (Optional)
 * FACETS repository base path.
 * Use "purity" or "hisens" data.
 * A path to store a persistent data file for this object. (Optional)
 
 The **data clinical sample file** is updated daily by the DMP-2022 knowledgebase and can be obtained through their github page.  
 Note that not all samples present in the data_clinical_sample.txt file will necessarily be present in a FACETS file repository depending on
-factors such as change in consent, most recent FACETS update run date, or custom repositories.  
+factors such as change in consent, most recent FACETS update run date, or custom repositories.  **NOTE: If this parameter is an empty string, then the provided FACETS repository base path will be scanned to produce the set of samples present in the directory.  This will mean that all samples/fits in the folder will be included in the FacetsMeta object, but clinical metadata from the data_clinical_sample file will not be available, and some downstream functions will be restricted.**
 
 The **FACETS repository base path** represents the base directory of a FACETS repository file system. 
 For example, the main Impact FACETS repository is located on Juno at `/work/ccs/shared/resources/impact/facets/all/`.
@@ -100,6 +100,19 @@ previously processed data can simply be loaded into the FacetsMeta object.
   
 ```
 
+```python
+  # This will build a FacetsMeta object, selecting a best/acceptable run for each sample 
+  # and includes default fits when best/acceptable is not indicated. With the clinical
+  # sample file not provided, the run will be based on what is present in the facets_dir.
+  # Note that some clinical metadata will be unavailable in this scenario for downstream analysis.
+  
+  clinical_sample_file  = ""
+  facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
+  prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity", "all_meta.dat")
+  prepared_metadata.setSingleRunPerSample(True, True)
+  prepared_metadata.buildFacetsMeta()
+  
+```
 
 ```python
   # This will build a FacetsMeta object that includes all samples and runs. 
