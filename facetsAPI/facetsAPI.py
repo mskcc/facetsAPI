@@ -2,6 +2,7 @@ from heapq import merge
 from random import sample
 import sys
 import os.path
+import os
 import glob
 import pandas as pd
 import pickle
@@ -22,6 +23,51 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+
+######################
+# FPTools:    This class functions as a wrapper to execute certain functions from Facets Preview.
+######################
+class FPTools:
+    genomic_anno_wrapper_script = "/juno/work/ccs/pricea2/pipelines/facetsAPI/R/fp_generate_genomic_anno_wrapper.R"
+
+    def __init__(self, config_file="/juno/work/ccs/bandlamc/git/ccs-cron/impact_facets/config_facets_preview.json", cbio_maf_file="", cbio_nonsigned_maf_file=""):
+        self.config_file             = config_file
+        self.cbio_maf_file           = cbio_maf_file
+        self.cbio_nonsigned_maf_file = cbio_nonsigned_maf_file
+
+    #This function will module load rVersionString on juno.
+    def loadModule(self, moduleToLoad):
+        try:
+            os.system("module load " + moduleToLoad)
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FPTools.load_R_version(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
+
+    #This function runs the wrapper script, R/fp_generate_genomic_anno_wrapper.R
+    #That script takes these arguments in this order:
+    #facets_preview_config_file = args[1]
+    #tumor_sample = args[2] -- i.e. P-0000280-T05-IM7
+    #sample_id = args[3] -- i.e. P-0071250-T01-IM7_P-0071250-N01-IM7
+    #sample_path = args[4]
+    #cbio_maf_path = args[5]
+    #cbio_maf_nonsignedout_path = args[6]
+    def runGenerateGenomicAnnotations(self, short_id, long_id, path):
+        try:
+            run_cmd = "bsub -W 1:59 -n 1 -R \"rusage[mem=8G]\" Rscript " + self.genomic_anno_wrapper_script + " " + \
+                    self.config_file + " " + short_id + " " + long_id + " " + path + " " + \
+                    self.cbio_maf_file + " " + self.cbio_nonsigned_maf_file
+            print(run_cmd)
+            os.system(run_cmd)
+            #sys.exit()
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FPTools.runGenerateGenomicAnnotations(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
 
 ######################
 # FacetsMeta:    This class represents necessary metadata structures that hold information such as directory paths,
@@ -95,7 +141,7 @@ class FacetsMeta:
             self.hasClinicalMeta = True
 
         #Data structures and storage.
-        self.master_file_dict       = {} # A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir, gene_file, adjseg_file]}
+        self.master_file_dict       = {} # A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir, gene_file, adjseg_file, ccf.maf, nonsignedout.ccf.maf]}
 
         #These come from data_clinical_sample.
         self.cancer_type_map        = {} # A map of sample ids to cancer types.
@@ -329,6 +375,14 @@ class FacetsMeta:
 
                         cur_qc         = glob.glob(selected_fit_dir + "*qc.txt")
                         cur_gene_level = glob.glob(selected_fit_dir + "*gene_level.txt")
+                        cur_ccf_mafs   = glob.glob(cur_fit_folder + "*ccf.maf")
+                        cur_ccf = ""
+                        cur_nonsignedout = ""
+                        for ccf_maf in cur_ccf_mafs:
+                            if 'nonsignedout' in ccf_maf:
+                                cur_nonsignedout = ccf_maf
+                            else:
+                                cur_ccf = ccf_maf
                         
                         #If critical files are missing, skip the sample.
                         if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level or not cur_adjseq:
@@ -342,7 +396,7 @@ class FacetsMeta:
                             adjseg_file     = cur_adjseq[0]
 
                         self.long_id_map[id]   = [id_with_normal]
-                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file]
+                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout]
                         #print(str([out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file]))
                         #break
                     #If we want to read in all fits for each sample, we need to iterate the manifest and build each one out.
@@ -383,6 +437,14 @@ class FacetsMeta:
 
                             cur_qc         = glob.glob(cur_fit_folder + "*qc.txt")
                             cur_gene_level = glob.glob(cur_fit_folder + "*gene_level.txt")
+                            cur_ccf_mafs   = glob.glob(cur_fit_folder + "*ccf.maf")
+                            cur_ccf = ""
+                            cur_nonsignedout = ""
+                            for ccf_maf in cur_ccf_mafs:
+                                if 'nonsignedout' in ccf_maf:
+                                    cur_nonsignedout = ccf_maf
+                                else:
+                                    cur_ccf = ccf_maf
 
                             #If critical files are missing, skip the sample.
                             if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level or not cur_adjseq:
@@ -396,7 +458,7 @@ class FacetsMeta:
                                 adjseg_file     = cur_adjseq[0]
 
                             cur_run_list.append(long_id)
-                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file]
+                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout]
                             #print(str([out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file]))
                             #sys.exit()
                         self.long_id_map[id] = cur_run_list
