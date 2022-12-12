@@ -47,7 +47,7 @@ The FacetsMeta object keeps track of a variety of id -> value maps.
 * cvr_tmb_score_map - A map of cvr tmb scores from the clinical sample file.
 * msi_score_map - A map of msi scores.
 * long_id_map - A map of sample ids to their corresponding long_ids.  id -> [long_id1, long_id2...]
-* samples_from_file - A list of samples from a file that should be selected for this object.
+* samples_from_file - A list of samples from a file that should be selected for this object. Populated by selectSamplesFromFile(input_file).
 * fit_map - A map of id -> [best/acceptable/default, fit_path].
 
 
