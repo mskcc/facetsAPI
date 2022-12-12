@@ -79,6 +79,7 @@ class FacetsMeta:
     selectSingleRun         = False
     failed_samples          = []
     run_verbose             = False
+    build_from_file_listing = False
 
     #OncoTree Codes that correspond to a specific cancer type.  
     breast_carcinoma    = ["ILC","IDC","BRCA","BRCNOS","BRCANOS","MDLC","MBC","CSNOS"]
@@ -152,7 +153,8 @@ class FacetsMeta:
         self.cvr_tmb_score_map      = {} # A map of cvr tmb scores from the clinical sample file.
         self.msi_score_map          = {} # A map of msi scores.
         self.long_id_map            = {} # A map of sample ids to their corresponding long_ids.  id -> [long_id1, long_id2...]
-
+        self.samples_from_file      = [] # A list of samples from a file that should be selected for this object.
+        self.fit_map                = {} # A map of id -> best/acceptable/default fit.
 
     def setVerbose(self, doVerbose):
         try:
@@ -217,6 +219,24 @@ class FacetsMeta:
             print (bcolors.ENDC)
             sys.exit()
 
+    #This function accepts a file with a single sample ID per line and populates this objects
+    #samples_from_file list.  If this list is populated and build_from_file_listing is true,
+    #When parseClinicalData runs, it will only include samples listed in the provided file.
+    def selectSamplesFromFile(self, infile):
+        try:
+            self.build_from_file_listing = True
+            with open(infile) as fp:
+                line = fp.readline()
+                while line:
+                    #print(line.strip())
+                    self.samples_from_file.append(line.strip())
+                    line = fp.readline()
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FacetsMeta.selectSamplesFromFile(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
 
     #Simple method for printing a FACETS API logo.
     @staticmethod
@@ -228,6 +248,8 @@ class FacetsMeta:
         print("|"+bcolors.OKBLUE+" \ \_\    \ \_\ \_\  \ \_____\  \ \_____\    \ \_\  \/\_____\ "+bcolors.OKCYAN+"    \ \_\ \_\  \ \_\    \ \_\ "+bcolors.ENDC+"|")
         print("|"+bcolors.OKBLUE+"  \/_/     \/_/\/_/   \/_____/   \/_____/     \/_/   \/_____/  "+bcolors.OKCYAN+"    \/_/\/_/   \/_/     \/_/ "+bcolors.ENDC+"|")
         print("~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~")
+    
+    
     ######################
     # parseClinicalSample:  This function will accept a clinical sample file and
     #                         scan each sample's corresponding facets directory.
@@ -295,9 +317,21 @@ class FacetsMeta:
                 print("\t\tBuilding directory map targeting a best runs for each sample.")
             else:
                 print("\t\tBuilding directory map including all runs for each sample.")
+
+            if self.build_from_file_listing == True:
+                print("\t\tSelecting samples only from the provided input sample list file.")
+
             for id in target_ids:
                 cur_short_id = id[0:7]
+                cur_tumor_id = id[0:17]
                 cur_id_dirs = glob.glob(self.facets_repo_path + cur_short_id + "/" + id + "*")
+
+                #print(":::cur_id: " + cur_tumor_id)
+
+                #If we are parsing data from a file, only include the samples we've already read in.
+                if self.build_from_file_listing == True:
+                    if cur_tumor_id not in self.samples_from_file:
+                        continue
 
                 #Keep track of how many samples had the same tumor/id, but multiple normals.
                 if len(cur_id_dirs) > 1:
@@ -334,7 +368,8 @@ class FacetsMeta:
                             if best_fit_list[0][-1] != '/':
                                 best_fit_list[0] = best_fit_list[0] + "/"
                             selected_fit_dir  = best_fit_list[0] + best_fit_list[2] + "/"
-                            num_best_fits = num_best_fits + 1     
+                            num_best_fits = num_best_fits + 1
+                            self.fit_map[id] = ["Best", selected_fit_dir]    
                         #If there is no best fit, check for acceptable fits.
                         elif(not target_accept_fit.empty):
                             accept_fit_list = target_accept_fit.values.tolist()[0]
@@ -342,6 +377,7 @@ class FacetsMeta:
                                 accept_fit_list[0] = accept_fit_list[0] + "/"
                             selected_fit_dir  = accept_fit_list[0] + accept_fit_list[2] + "/"
                             num_acceptable_fits = num_acceptable_fits + 1
+                            self.fit_map[id] = ["Acceptable", selected_fit_dir]
                         #If we have nothing still, and are accepting default fits, use that.
                         elif(FacetsMeta.use_unreviewed_defaults):
                             default_fit_list = target_default_fit.values.tolist()[0]
@@ -349,6 +385,7 @@ class FacetsMeta:
                                 default_fit_list[0] = default_fit_list[0] + "/"
                             selected_fit_dir  = default_fit_list[0] + default_fit_list[2] + "/"
                             num_default_fits = num_default_fits + 1
+                            self.fit_map[id] = ["Default", selected_fit_dir]
                         #Nothing we want was available, move on from this sample.
                         else:
                             continue
@@ -375,7 +412,7 @@ class FacetsMeta:
 
                         cur_qc         = glob.glob(selected_fit_dir + "*qc.txt")
                         cur_gene_level = glob.glob(selected_fit_dir + "*gene_level.txt")
-                        cur_ccf_mafs   = glob.glob(cur_fit_folder + "*ccf.maf")
+                        cur_ccf_mafs   = glob.glob(selected_fit_dir + "*ccf.maf")
                         cur_ccf = ""
                         cur_nonsignedout = ""
                         for ccf_maf in cur_ccf_mafs:
@@ -430,7 +467,6 @@ class FacetsMeta:
                                 cur_out    = glob.glob(cur_fit_folder + "*_hisens.out")
                                 cur_cncf   = glob.glob(cur_fit_folder + "*_hisens.cncf.txt")
                                 cur_adjseq = glob.glob(cur_fit_folder + "/*_hisens_diplogR.adjusted.seg")
-
                             else:
                                 print("Error: hisens_vs_purity value should be 'hisens' or 'purity'.")
                                 sys.exit()
@@ -831,7 +867,7 @@ class FacetsDataset:
                 outfile.write(headerString + "\n")
 
                 for curSample in self.runList:
-                    print("hi" + curSample.cancerType)
+                    #print("hi" + curSample.cancerType)
                     curSample.printSample()
                     curLineString = ""
                     curLineString += curSample.id + "\t"
@@ -928,7 +964,7 @@ class FacetsDataset:
 
             #Go through our master file dictionary and build facets sample objects.
             for key in self.ref_facetsMeta.master_file_dict.keys():
-                print(key)
+                #print(key)
                 if total_samples_prepped % 1000 == 0 and total_samples_prepped != 0:
                     print("\t\tSamples Processed: " + str(total_samples_prepped))
 
@@ -1560,18 +1596,17 @@ class FacetsSegment:
     min_gain_tcn         = 4    # This is the minimum value of TCN required to consider a segment to be a Gain call.
     percent_arm_gain     = 50.0 # This is the percentage of the arm that needs to be TCN=min_gain_tcn to make an arm level Gain call.
     
-
-
     def __init__(self, chrom, start, end, cnlr_median, cf, cf_base, tcn, lcn, num_mark, nhet, mafR, segclust, cnlr_median_clust, mafR_clust, adj_mean):
         # These values are calculated in FacetsRun.defineArms().
         self.arm         = "undefined" # This is the chr/arm.  I.E. 1p, 5q, etc.
         self.percentArm  = -1          # This is the percentage of the arm that this segment covers. 
+
         self.chrom       = int(chrom)
         self.start       = int(start)
         self.end         = int(end)
         self.cnlr_median = float(cnlr_median) #These values are the same as the unadjusted.seg file so we did not use the unadjusted.seg file to open less files
         self.length      = int(max(end - start, start - end))
-        self.cf          = float(cf)      #This API uses cf.em values for everything, so its just called cf here.
+        self.cf          = float(cf)          #This API uses cf.em values for everything, so its just called cf here.
         self.num_mark    = int(num_mark)
         self.nhet        = int(nhet)
         self.segclust    = int(segclust)
