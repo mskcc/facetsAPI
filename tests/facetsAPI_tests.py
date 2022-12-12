@@ -47,12 +47,13 @@ def test_facetsDataset(useSingleRun, allowDefaults):
 #Otherwise, an object that considers all runs for each sample will be generated.  
 def test_facetsMeta(useSingleRun, allowDefaults):
     clinical_sample_file  = ""#"/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"
-    facets_dir            = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/run_11-14-22/facets/fix_alt/all/"
-    #facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
+    #facets_dir            = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/run_11-14-22/facets/fix_alt/all/"
+    facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
 
     #Initialize FacetsMeta. This will build all relevant metadata we need going forward.
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
     prepared_metadata.setSingleRunPerSample(useSingleRun,allowDefaults)
+    prepared_metadata.selectSamplesFromFile("/juno/work/ccs/pricea2/pipelines/facetsAPI/tests/test_samples.txt")
     prepared_metadata.buildFacetsMeta()
     test_dataset = FacetsDataset(prepared_metadata)
     #test_dataset.setCancerTypeFilter(["Lung"])
@@ -114,8 +115,8 @@ def test_fpTools(useSingleRun, allowDefaults):
 if __name__ == '__main__':
     #clinical_sample_file  = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"
     #facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
-    test_fpTools(False, False)
-    #test_facetsMeta(False, False)
+    #test_fpTools(False, False)
+    test_facetsMeta(False, False)
     #test_facetsDataset(True, True)
     #test_alterationFunctions(False, False)
     #test_facetsPurityByCF()

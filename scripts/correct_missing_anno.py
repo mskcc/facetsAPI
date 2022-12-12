@@ -26,6 +26,10 @@ def correct_missing_annotations(useSingleRun, allowDefaults):
     fp_tools = FPTools(fp_config, cbio_maf, cbio_nonsigned_maf)
     fp_tools.loadModule("R/R-3.6.3")
 
+    #Sometimes you will get multiple fits, that will cause the job to queue multiple times.
+    #Because facetspreview::generate_genomic_annotations will run at the sample base level on all fits
+    #we don't want to queue multiple times for the same folder. So get unique paths before submitting.
+    unique_paths = {} 
     for key in prepared_metadata.master_file_dict:
         cur_files = prepared_metadata.master_file_dict.get(key)
         cur_long_id = key.split('#')[0]
@@ -33,10 +37,17 @@ def correct_missing_annotations(useSingleRun, allowDefaults):
         cur_ccf_maf = cur_files[7]
         cur_nonsigned_maf = cur_files[8]
         cur_path = os.path.dirname(cur_files[3]) + "/"
-    
-        if cur_ccf_maf == "" or cur_nonsigned_maf == "":
-            print("\t\t\tRunning FacetsPreview generate_genomic_annotations() for " + key)
-            fp_tools.runGenerateGenomicAnnotations(cur_short_id, cur_long_id, cur_path)
+        if cur_path not in unique_paths:
+            if cur_ccf_maf == "" or cur_nonsigned_maf == "":
+                unique_paths[cur_path] = [cur_short_id, cur_long_id, cur_path, cur_ccf_maf]
+
+    print(str(len(prepared_metadata.master_file_dict)) + " items in master file dict.")
+    print(str(len(unique_paths)) + " unique paths need correction.")
+
+    for cur_unique_path in unique_paths:
+        cur_correct = unique_paths.get(cur_unique_path)
+        print("\t\t\tRunning FacetsPreview generate_genomic_annotations() for " + cur_correct[1])
+        fp_tools.runGenerateGenomicAnnotations(cur_correct[0], cur_correct[1], cur_correct[2])
 
     print("\t\tCompleted correct_missing_annotations.")
 
