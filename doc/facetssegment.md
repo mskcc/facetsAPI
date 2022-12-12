@@ -25,13 +25,13 @@ The following variables are available in a FacetsSegment object.
 * length - length of this segment.
 * cf - Clonal fraction for this segment.  Note that this is the expectation maximization adjusted cf value (em).
 * cf_base - The base clonal fraction.  Unadjusted.
-* num_mark - **ALLISON**
+* num_mark - The number of SNPs in the segment
 * nhet - Minimum number of heterozygote snps in a segment used to call minor cn
-* segclust - **ALLISON**
-* cnlr_median_clust - **ALLISON**
-* mafR - **ALLISON**
+* segclust - The segment cluster to which segment belongs.
+* cnlr_median_clust - The median log-ratio of the segment.
+* mafR - The log-odds-ratio summary for the segment
 * adj_mean - Adjusted mean values.  These correspond to the mean column in .unadjusted.seg files.
-* mafR_clust - **ALLISON**
+* mafR_clust - The log-odds-ratio summary for the segment cluster.
 * tcn - Total copy number for this segment. Note that this is the expectation maximization adjusted cf value (em).
 * lcn - Lesser copy number for this segment. Note that this is the expectation maximization adjusted cf value (em).
 
