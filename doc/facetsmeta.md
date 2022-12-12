@@ -35,6 +35,22 @@ By providing a path to this parameter, on the initial run, a binary version of t
 In subsequent runs, if the indicated path already points to a file, instead of parsing the clinical data and scanning the facets repository, the 
 previously processed data can simply be loaded into the FacetsMeta object.  
 
+### Data Maps
+The FacetsMeta object keeps track of a variety of id -> value maps.  
+
+ * master_file_dict - A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir, gene_file, adjseg_file, ccf.maf, nonsignedout.ccf.maf]}
+* cancer_type_map - A map of sample ids to cancer types.
+* cancer_type_detail_map - A map of sample ids to cancer type detailed.
+* patient_id_map - A map of sample ids to patient ids.
+* clinical_purity_map - A map of purity values from the clinical sample file.
+* onkotree_code_map - A map of onkotree codes.
+* cvr_tmb_score_map - A map of cvr tmb scores from the clinical sample file.
+* msi_score_map - A map of msi scores.
+* long_id_map - A map of sample ids to their corresponding long_ids.  id -> [long_id1, long_id2...]
+* samples_from_file - A list of samples from a file that should be selected for this object.
+* fit_map - A map of id -> [best/acceptable/default, fit_path].
+
+
 ### Functions
 
 * printLogo() 
@@ -54,7 +70,8 @@ previously processed data can simply be loaded into the FacetsMeta object.
   * This function will set this FacetsMeta object to select a single run per sample based on identified best or acceptable fits, as defined in the facets manifest for any given sample.  If the first parameter, useSingleSample, is set to True, then for each sample, a single run will be selected if a best or acceptable fit is selected. If useSingleSample is set to True, then it is also possible to allow default fits to be selected in cased where no best or acceptable fit is indicated. Default for both of these parameters is set to False.
 * setVerbose(bool activateVerbose)
   * This function accepts True or False as a parameter, and will activate verbose mode if set to True.  This will make warning messages visible during runtime and show more details of data processing for various processes.  By default, verbose mode is set to False.   
-
+* selectSamplesFromFile(input_file)
+  * This function accepts a file with a single sample ID per line and populates this object's samples_from_file list.  If this list is populated and build_from_file_listing is true, when parseClinicalData runs it will only include samples listed in the provided file. Expected file format is one sample per line.  Expected sample format is P-12345678-TXX-IMX.
 
 ### Additional Data
 
