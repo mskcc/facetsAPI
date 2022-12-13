@@ -30,7 +30,7 @@ The following variables are available in a FacetsSegment object.
 * segclust - The segment cluster to which segment belongs.
 * cnlr_median_clust - The median log-ratio of the segment.
 * mafR - The log-odds-ratio summary for the segment
-* adj_mean - Adjusted mean values.  These correspond to the mean column in .unadjusted.seg files.
+* adj_mean - Adjusted mean values.  These correspond to the mean column in .adjusted.seg files.
 * mafR_clust - The log-odds-ratio summary for the segment cluster.
 * tcn - Total copy number for this segment. Note that this is the expectation maximization adjusted cf value (em).
 * lcn - Lesser copy number for this segment. Note that this is the expectation maximization adjusted cf value (em).
