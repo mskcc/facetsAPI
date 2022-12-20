@@ -8,7 +8,7 @@ sys.path.insert(1, '/juno/work/ccs/pricea2/pipelines/facetsAPI')
 from facetsAPI import *
 
 if __name__ == '__main__':
-    clinical_sample_file  = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"
+    clinical_sample_file  = "/work/ccs/shared/resources/impact/knowledge-systems/11-14-22/oncokb-annotated-msk-impact/data_clinical_sample.oncokb.txt"
     facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
 
     #Initialize FacetsMeta. This will build all relevant metadata we need going forward.
@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
     #Now we have all the info we want in one place, so write a custom function that outputs the report we want.
     #Write the info we want out to a file.  Keep track of missing samples so we can report as well.
-    with open("sam_cohort_report.txt", 'w') as outfile:
+    with open("sam_cohort_report2.txt", 'w') as outfile:
         outfile.write("ID\tfitDir\tfitType\tCancer Type\tCancer Type Detail\tFacets Purity\tClinical Purity\tOnkoCode\tPloidy\tdipLogR\tcVal\tWGD\tFGA\tfrac_loh\tfacets_qc_pass\ttmb\tmsi" + "\n")
         found_list = []
         for cur_run in test_dataset.runList:

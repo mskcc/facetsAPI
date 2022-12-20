@@ -17,6 +17,9 @@ def correct_missing_annotations(useSingleRun, allowDefaults):
 
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
     prepared_metadata.setSingleRunPerSample(useSingleRun,allowDefaults)
+    
+    prepared_metadata.selectSamplesFromFile("/juno/work/ccs/pricea2/pipelines/facetsAPI/tests/test_samples.txt")
+
     prepared_metadata.buildFacetsMeta()
 
     fp_config = "/juno/work/ccs/bandlamc/git/ccs-cron/impact_facets/config_facets_preview.json"
