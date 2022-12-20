@@ -11,7 +11,7 @@ _Please cite: Spurr LF, Touat M, Taylor AM, et al. Quantification of aneuploidy 
 
 This repository contains the code to run the ASCETS arm-level copy number events caller for targeted sequencing data. ASCETS produces arm-level copy-number variant calls and arm-level weighted average log2 segment means from segmented copy number data.
 
-#Notes for FacetsAPI:
+## Notes for FacetsAPI:
 The scripts have been modified for Ascets to run with a -p option to specify an output path.  If the version of ascets we use is ever updated, we will need to make that change as well.
 
 ## How to run ASCETS
