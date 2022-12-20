@@ -25,7 +25,7 @@ class bcolors:
 
 
 ######################
-# Tools:    This class functions as a wrapper to execute certain functions from external sources,
+# ExtTools:    This class functions as a wrapper to execute certain functions from external sources,
 ######################
 class ExtTools:
     def __init__(self, ref_meta):
@@ -341,7 +341,7 @@ class FacetsMeta:
             self.hasClinicalMeta = True
 
         #Data structures and storage.
-        self.master_file_dict       = {} # A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir, gene_file, adjseg_file, ccf.maf, nonsignedout.ccf.maf, unadjseg_file]}
+        self.master_file_dict       = {} # A map of relevant files for each sample. See MetaDictMap for ordering. {id -> [file list]}
 
         #These come from data_clinical_sample.
         self.cancer_type_map        = {} # A map of sample ids to cancer types.
