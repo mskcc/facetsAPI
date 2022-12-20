@@ -6,7 +6,7 @@ import os
 import glob
 import pandas as pd
 import pickle
-
+from datetime import date
 
 ######################
 # bcolors:    This class is a set of color codes that can be concatenated in strings to change output in the terminal.
@@ -23,6 +23,143 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+
+######################
+# ExtTools:    This class functions as a wrapper to execute certain functions from external sources,
+######################
+class ExtTools:
+    def __init__(self, ref_meta):
+        if not isinstance(ref_meta, FacetsMeta):
+            print (bcolors.FAIL)
+            print ("\t\tError in ExtTools(). ref_meta must be of type FacetsMeta.")
+            print (bcolors.ENDC)
+            sys.exit()
+        self.ref_meta = ref_meta
+
+    #This function will module load rVersionString on juno.
+    def loadModule(self, moduleToLoad):
+        try:
+            os.system("module load " + moduleToLoad)
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in ExtTools.load_R_version(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
+
+    #This function will make a merged file for any file type in the MetaDictMap with a shared header.
+    #fileType should be a MetaDictMap.FILETYPE. 
+    #This will return a path to the written file.
+    def makeMergedFile(self, fileType, outfile_path):
+        try:
+            #Keep track and don't duplicate any files. 
+            #This can happen when there are alt fits included for the same sample.
+            #For instance a seg file merge could merge a default and alt fit, but would duplicate
+            #the exact values.
+            completed_files = [] 
+            with open(outfile_path, 'w') as outfile:
+                writeHeader = True
+                for item in self.ref_meta.master_file_dict:
+                    cur_file = self.ref_meta.master_file_dict.get(item)[fileType]
+                    base_file = os.path.basename(cur_file)
+                    if base_file in completed_files:
+                        continue
+                    else:
+                        completed_files.append(base_file)
+                    
+                    #Write the header only for the first file.
+                    if writeHeader is True:
+                        os.system("cat " + cur_file + " > " + outfile_path)
+                        writeHeader = False
+                    else:
+                        os.system("tail -n +2 " + cur_file + " >> " + outfile_path)
+
+            return outfile_path
+
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in ExtTools.makeMergedFile(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
+
+    #This function will run ascets.
+    #bsub -J "P-0000012-T03-IM3_P-0000012-N01-IM3" -We 1:59 -n 2 bash -c "Rscript run_ascets.R -i /juno/work/ccs/pricea2/data/ascets/input_segs/P-0000012-T03-IM3_P-0000012-N01-IM3_purity.seg -c /juno/work/ccs/pricea2/pipelines/ascets/ascets/genomic_arm_coordinates_hg19.txt -m 0.5 -k F -a 0.7 -o P-0000012-T03-IM3_P-0000012-N01-IM3"
+    def runAscets(self, output_dir="", ref_genome_coords="hg19", min_arm_breadth=0.5, keep_noise=False, arm_alt_frac_thresh=0.7, use_adjusted=True):
+        try:
+            arm_coords_file = ""
+            merged_seg_tmp_file = ""
+
+            if output_dir == "":
+                print (bcolors.FAIL)
+                print ("\t\tError in Tools.runAscets(). No output path provided.")
+                print (bcolors.ENDC)
+                sys.exit()
+            if ref_genome_coords != "hg19" and ref_genome_coords != "hg38":
+                print (bcolors.FAIL)
+                print ("\t\tError in Tools.runAscets(). ref_genome_coords must be hg19 or hg38.")
+                print (bcolors.ENDC)
+                sys.exit()
+            #Select the appropriate genomic arm coordinate file. 
+            else:
+                if ref_genome_coords == "hg19":
+                    arm_coords_file = os.path.dirname(__file__) + "/../tools/ascets/genomic_arm_coordinates_hg19.txt"
+                if ref_genome_coords == "hg38":
+                    arm_coords_file = os.path.dirname(__file__) + "/../tools/ascets/genomic_arm_coordinates_hg38.txt"
+
+            #Print some notes on dependencies.
+            print("\t\tNote: Ascets requires R 3.6.* and requires tidyverse and data.table libraries.")
+            print("\t\tNote: Failure to meet these dependencies will result in an empty ascets run.")
+
+            #Make an output folder if necessary.
+            if os.path.isdir(output_dir):
+                print ("\t\tAscets folder already exists: " + output_dir)
+            else:
+                print ("\t\tCreating ascets output folder at: " + output_dir)
+                os.system("mkdir " + output_dir)
+
+            #Make an adjusted or unadjusted merged seg file to use as ascets input.
+            #This will use everything in the FacetsMeta reference object for ExtTools.
+            adj_str = ""
+            merged_seg_tmp_file = output_dir + "/merged_seg_data.seg"
+            if use_adjusted:
+                adj_str = "facetsAdjustedSeg"
+                self.makeMergedFile(MetaDictMap.ADJUSTED_SEG_FILE, merged_seg_tmp_file)
+            else:
+                adj_str = "facetsUnadjustedSeg"
+                self.makeMergedFile(MetaDictMap.UNADJUSTED_SEG_FILE, merged_seg_tmp_file)
+
+            noise_str = ""
+            keep_noise_short = ""
+            if keep_noise:
+                keep_noise_short = "T"
+                noise_str = "keepNoise"
+            else:
+                keep_noise_short = "F"
+                noise_str = "filterNoise"
+
+            out_log_file = output_dir + "/runLog.out"
+            err_log_file = output_dir + "/runLog.err"
+
+            #Make an output prefix:
+            out_prefix = "FacetsAscetsRun_" + ref_genome_coords + "_breadth" + str(min_arm_breadth) + "_" + noise_str + "_armAltFracThresh" + str(arm_alt_frac_thresh) + "_" + adj_str + "_" + str(date.today())
+
+            run_ascets_script = os.path.dirname(__file__) + "/../tools/ascets/run_ascets.R"
+
+            #Load required version of R.
+            self.loadModule("R/R-3.6.3")
+
+            #Submit ascets run to the queue.
+            ascets_cmd = "bsub -J " + out_prefix + " -o " + out_log_file + " -e " + err_log_file + " -We 1:59 -n 2 bash -c \"Rscript " + run_ascets_script + " -i " + merged_seg_tmp_file + " -c " + arm_coords_file + " -m " + str(min_arm_breadth) + " -k " + keep_noise_short + " -a " + str(arm_alt_frac_thresh) + " -o " + out_prefix + " -p " + output_dir + "\""
+            print("\t\t\tRunning ascets...")
+            os.system(ascets_cmd)
+            
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in ExtTools.runAscets(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()    
 
 ######################
 # FPTools:    This class functions as a wrapper to execute certain functions from Facets Preview.
@@ -68,6 +205,68 @@ class FPTools:
             print (e)
             print (bcolors.ENDC)
             sys.exit()
+
+    #This function will make backup files of existing manifests for every sample in the provided FacetsMeta object.
+    def backupManifests(self, ref_meta):
+        try:
+            if not isinstance(ref_meta, FacetsMeta):
+                print (bcolors.FAIL)
+                print ("\t\tError in FPTools.backupManifests(). ref_meta must be of type FacetsMeta.")
+                print (bcolors.ENDC)
+                sys.exit()
+            print("Backing up manifest files.")
+            for item in ref_meta.master_file_dict:
+                curSample   = ref_meta.master_file_dict.get(item)
+                curManifest = curSample[MetaDictMap.MANIFEST_FILE]
+                bakManifest = curManifest + "." + str(date.today()) + ".bak"
+                backup_cmd  = "cp " + curManifest + " " + bakManifest
+                os.system(backup_cmd)
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FPTools.backupManifests(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
+
+    #This function will make backup files of existing facets qc files for every sample in the provided FacetsMeta object.
+    def backupFacetsQC(self, ref_meta):
+        try:
+            if not isinstance(ref_meta, FacetsMeta):
+                print (bcolors.FAIL)
+                print ("\t\tError in FPTools.backupFacetsQC(). ref_meta must be of type FacetsMeta.")
+                print (bcolors.ENDC)
+                sys.exit()
+            print("Backing up Facets QC files.")
+            for item in ref_meta.master_file_dict:
+                curSample   = ref_meta.master_file_dict.get(item)
+                curQC = curSample[MetaDictMap.FACETS_QC_FILE]
+                bakQC = curQC + "." + str(date.today()) + ".bak"
+                backup_cmd  = "cp " + curQC + " " + bakQC
+                os.system(backup_cmd)
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FPTools.backupManifests(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
+
+
+######################
+# MetaDictMap:    This class is a map of files for the master_file_dict in FacetsMeta for better readability. 
+#                 When calling master_file_dict, instead of numbered indeces, use MetaDictMap.FILE_NAME.
+######################
+class MetaDictMap:
+    OUT_FILE = 0
+    CNCF_FILE = 1
+    QC_FILE = 2
+    FACETS_QC_FILE = 3
+    SELECTED_FIT_DIR = 4
+    GENE_FILE = 5
+    ADJUSTED_SEG_FILE = 6
+    CCF_MAF_FILE = 7
+    NONSIGNED_MAF_FILE = 8
+    UNADJUSTED_SEG_FILE = 9
+    MANIFEST_FILE = 10
 
 ######################
 # FacetsMeta:    This class represents necessary metadata structures that hold information such as directory paths,
@@ -142,7 +341,7 @@ class FacetsMeta:
             self.hasClinicalMeta = True
 
         #Data structures and storage.
-        self.master_file_dict       = {} # A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir, gene_file, adjseg_file, ccf.maf, nonsignedout.ccf.maf]}
+        self.master_file_dict       = {} # A map of relevant files for each sample. See MetaDictMap for ordering. {id -> [file list]}
 
         #These come from data_clinical_sample.
         self.cancer_type_map        = {} # A map of sample ids to cancer types.
@@ -399,13 +598,15 @@ class FacetsMeta:
                         gene_level_file = ""
                         adjseg_file = ""
                         if self.hisens_vs_purity == "purity":
-                            cur_out    = glob.glob(selected_fit_dir + "/*_purity.out")
-                            cur_cncf   = glob.glob(selected_fit_dir + "/*_purity.cncf.txt")
-                            cur_adjseq = glob.glob(selected_fit_dir + "/*_purity_diplogR.adjusted.seg")
+                            cur_out      = glob.glob(selected_fit_dir + "/*_purity.out")
+                            cur_cncf     = glob.glob(selected_fit_dir + "/*_purity.cncf.txt")
+                            cur_adjseq   = glob.glob(selected_fit_dir + "/*_purity_diplogR.adjusted.seg")
+                            cur_unadjseq = glob.glob(selected_fit_dir + "/*_purity_diplogR.unadjusted.seg")
                         elif self.hisens_vs_purity == "hisens":
-                            cur_out    = glob.glob(selected_fit_dir + "/*_hisens.out")
-                            cur_cncf   = glob.glob(selected_fit_dir + "/*_hisens.cncf.txt")
-                            cur_adjseq = glob.glob(selected_fit_dir + "/*_hisens_diplogR.adjusted.seg")
+                            cur_out      = glob.glob(selected_fit_dir + "/*_hisens.out")
+                            cur_cncf     = glob.glob(selected_fit_dir + "/*_hisens.cncf.txt")
+                            cur_adjseq   = glob.glob(selected_fit_dir + "/*_hisens_diplogR.adjusted.seg")
+                            cur_unadjseq = glob.glob(selected_fit_dir + "/*_hisens_diplogR.unadjusted.seg")
                         else:
                             print("Error: hisens_vs_purity value should be 'hisens' or 'purity'.")
                             sys.exit()
@@ -422,7 +623,7 @@ class FacetsMeta:
                                 cur_ccf = ccf_maf
                         
                         #If critical files are missing, skip the sample.
-                        if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level or not cur_adjseq:
+                        if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level or not cur_adjseq or not cur_unadjseq:
                             num_missing = num_missing + 1
                             continue
                         else:
@@ -431,9 +632,10 @@ class FacetsMeta:
                             qc_file         = cur_qc[0]
                             gene_level_file = cur_gene_level[0]
                             adjseg_file     = cur_adjseq[0]
+                            unadjseg_file   = cur_unadjseq[0]
 
                         self.long_id_map[id]   = [id_with_normal]
-                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout]
+                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file]
                         #print(str([out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file]))
                         #break
                     #If we want to read in all fits for each sample, we need to iterate the manifest and build each one out.
@@ -459,14 +661,23 @@ class FacetsMeta:
 
                             cur_fit_folder = cur_sample_folder + row['fit_name'] + "/"
 
+                            if row['fit_name'] == "reviewed_best_fit":
+                                self.fit_map[id] = ["Best", cur_fit_folder]
+                            if row['fit_name'] == "reviewed_acceptable_fit":
+                                self.fit_map[id] = ["Acceptable", cur_fit_folder]
+                            if row['fit_name'] == "default":
+                                self.fit_map[id] = ["Default", cur_fit_folder]
+
                             if self.hisens_vs_purity == "purity":
                                 cur_out    = glob.glob(cur_fit_folder + "*_purity.out")
                                 cur_cncf   = glob.glob(cur_fit_folder + "*_purity.cncf.txt")
                                 cur_adjseq = glob.glob(cur_fit_folder + "/*_purity_diplogR.adjusted.seg")
+                                cur_unadjseq = glob.glob(cur_fit_folder + "/*_purity_diplogR.unadjusted.seg")
                             elif self.hisens_vs_purity == "hisens":
                                 cur_out    = glob.glob(cur_fit_folder + "*_hisens.out")
                                 cur_cncf   = glob.glob(cur_fit_folder + "*_hisens.cncf.txt")
                                 cur_adjseq = glob.glob(cur_fit_folder + "/*_hisens_diplogR.adjusted.seg")
+                                cur_unadjseq = glob.glob(cur_fit_folder + "/*_hisens_diplogR.unadjusted.seg")
                             else:
                                 print("Error: hisens_vs_purity value should be 'hisens' or 'purity'.")
                                 sys.exit()
@@ -483,7 +694,7 @@ class FacetsMeta:
                                     cur_ccf = ccf_maf
 
                             #If critical files are missing, skip the sample.
-                            if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level or not cur_adjseq:
+                            if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level or not cur_adjseq or not cur_unadjseq:
                                 num_missing = num_missing + 1
                                 continue
                             else:
@@ -492,9 +703,10 @@ class FacetsMeta:
                                 qc_file         = cur_qc[0]
                                 gene_level_file = cur_gene_level[0]
                                 adjseg_file     = cur_adjseq[0]
+                                unadjseg_file   = cur_unadjseq[0]
 
                             cur_run_list.append(long_id)
-                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout]
+                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file]
                             #print(str([out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file]))
                             #sys.exit()
                         self.long_id_map[id] = cur_run_list
@@ -571,9 +783,41 @@ class FacetsDataset:
         self.minMSI    = -1.0
         self.maxMSI    = -1.0
 
-    #This function will write a facets data set to a tab delimited file.
-    def writeToDelimFile(self, include_):
-        pass
+    #This function will write a report for the samples in the current dataset to the given outfile.
+    def writeReport(self, outfile_name):
+        try:
+            print("\t\t\tWriting report to: " + outfile_name)
+            with open(outfile_name, 'w') as outfile:
+                outfile.write("ID\tfitDir\tfitType\tCancer Type\tCancer Type Detail\tFacets Purity\tClinical Purity\tOnkoCode\tPloidy\tdipLogR\tcVal\tWGD\tFGA\tfrac_loh\tfacets_qc_pass\ttmb\tmsi" + "\n")
+                found_list = []
+                for cur_run in self.runList:
+                    cur_tumor_id = cur_run.id[0:17]
+                    cur_fit_item = self.ref_facetsMeta.fit_map.get(cur_tumor_id)
+
+                    outfile.write(str(cur_run.id) + "\t")
+                    outfile.write(str(cur_run.fitDir) + "\t")
+                    outfile.write(str(cur_fit_item[0]) + "\t")
+                    outfile.write(str(cur_run.cancerType) + "\t")
+                    outfile.write(str(cur_run.cancerTypeDetail) + "\t")
+                    outfile.write(str(cur_run.purity) + "\t")
+                    outfile.write(str(cur_run.clinicalPurity) + "\t")
+                    outfile.write(str(cur_run.onkoCode) + "\t")
+                    outfile.write(str(cur_run.ploidy) + "\t")
+                    outfile.write(str(cur_run.dipLogR) + "\t")
+                    outfile.write(str(cur_run.cval) + "\t")
+                    outfile.write(str(cur_run.wgd) + "\t")
+                    outfile.write(str(cur_run.fga) + "\t")
+                    outfile.write(str(cur_run.frac_loh) + "\t")
+                    outfile.write(str(cur_run.facets_qc) + "\t")
+                    outfile.write(str(cur_run.tmb) + "\t")
+                    outfile.write(str(cur_run.msi) + "\t")
+                    outfile.write("\n")
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FacetsDataset.writeReport(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()  
 
     #This function will calculate and write calculated purity data for each sample.  If use_base_cf is true, cf will be used
     #rather than cf.em.  
@@ -2718,31 +2962,31 @@ class FacetsRun:
 
             #If the file exists, but is empty, return a failure.
             # [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir, gene_level_file]}
-            if os.path.getsize(cur_dir_map[0]) == 0:
+            if os.path.getsize(cur_dir_map[MetaDictMap.OUT_FILE]) == 0:
                 if facets_metadata.run_verbose:
                     print (bcolors.WARNING)
                     print ("\t\tWarning: " + sample_id + " out_file is empty!")
                     print (bcolors.ENDC)
                 return False
-            if os.path.getsize(cur_dir_map[1]) == 0:
+            if os.path.getsize(cur_dir_map[MetaDictMap.CNCF_FILE]) == 0:
                 if facets_metadata.run_verbose:
                     print (bcolors.WARNING)
                     print ("\t\tWarning: " + sample_id + " cncf_file is empty!")
                     print (bcolors.ENDC)
                 return False
-            if os.path.getsize(cur_dir_map[2]) == 0:
+            if os.path.getsize(cur_dir_map[MetaDictMap.QC_FILE]) == 0:
                 if facets_metadata.run_verbose:
                     print (bcolors.WARNING)
                     print ("\t\tWarning: " + sample_id + " qc_file is empty!")
                     print (bcolors.ENDC)
                 return False
-            if os.path.getsize(cur_dir_map[3]) == 0:
+            if os.path.getsize(cur_dir_map[MetaDictMap.FACETS_QC_FILE]) == 0:
                 if facets_metadata.run_verbose:
                     print (bcolors.WARNING)
                     print ("\t\tWarning: " + sample_id + " facets_qc_file is empty!")
                     print (bcolors.ENDC)
                 return False
-            if os.path.getsize(cur_dir_map[5]) == 0:
+            if os.path.getsize(cur_dir_map[MetaDictMap.GENE_FILE]) == 0:
                 if facets_metadata.run_verbose:
                     print (bcolors.WARNING)
                     print ("\t\tWarning: " + sample_id + " gene-level file is empty!")
@@ -2750,8 +2994,8 @@ class FacetsRun:
                 return False
 
             #Get data from our relevant input files.
-            out_data               = FacetsRun.parseOut(cur_dir_map[0])
-            sample_qc_data         = FacetsRun.parseSampleQC(cur_dir_map[2], out_data[1])
+            out_data               = FacetsRun.parseOut(cur_dir_map[MetaDictMap.OUT_FILE])
+            sample_qc_data         = FacetsRun.parseSampleQC(cur_dir_map[MetaDictMap.QC_FILE], out_data[1])
             facets_qc_out          = FacetsRun.parseFacetsQC(cur_dir_map)
   
             #If we were missing information in any of our files, we don't want to proceed with this sample.
@@ -2796,7 +3040,7 @@ class FacetsRun:
             #Build the FacetsRun object.
             cur_facets_sample = FacetsRun(sample_id,
                                             cur_patient_id, 
-                                            cur_dir_map[4], 
+                                            cur_dir_map[MetaDictMap.SELECTED_FIT_DIR], 
                                             cur_cancer_type,
                                             cur_cancer_type_detail, 
                                             out_data[0], 
@@ -2814,14 +3058,14 @@ class FacetsRun:
                                             FacetsMeta.hisens_vs_purity)
             
             #Now build in the segments from the CNCF file.
-            segments = FacetsRun.parseCNCF(cur_dir_map[1],cur_dir_map[6])
+            segments = FacetsRun.parseCNCF(cur_dir_map[MetaDictMap.CNCF_FILE],cur_dir_map[MetaDictMap.ADJUSTED_SEG_FILE])
             for i in range(len(segments)):
                 if str(segments[i].cf) == "nan" or str(segments[i].cf_base) == "nan":
                     continue
                 cur_facets_sample.addSegment(segments[i])
 
             #Now build in the gene-level data.
-            geneLevel = FacetsRun.parseGeneLevel(cur_dir_map[5])
+            geneLevel = FacetsRun.parseGeneLevel(cur_dir_map[MetaDictMap.GENE_FILE])
             for curGene in geneLevel:
                 geneToAdd = FacetsGene(curGene[0],
                                         curGene[1],

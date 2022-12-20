@@ -74,7 +74,7 @@ def test_facetsPurityByCF():
     test_dataset.writePurityCFs("cfPurity_hisens_base.txt", True)
     test_dataset.writePurityCFs("cfPurity_hisens_cfEm.txt", False)
 
-def test_fpTools(useSingleRun, allowDefaults):
+def test_tools(useSingleRun, allowDefaults):
     clinical_sample_file  = ""#"/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"
     #facets_dir            = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/run_11-14-22/facets/fix_alt/all/"
     facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
@@ -87,7 +87,7 @@ def test_fpTools(useSingleRun, allowDefaults):
     cbio_maf = "/work/ccs/shared/resources/impact/cbio_mutations/data_mutations_extended.oncokb.vep.maf"
     cbio_nonsigned_maf = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/run_11-14-22/cbio_mutations/data_mutations_nonsignedout.vep.maf"
     
-    fp_tools = FPTools(fp_config, cbio_maf, cbio_nonsigned_maf)
+    fp_tools = Tools(fp_config, cbio_maf, cbio_nonsigned_maf)
     fp_tools.loadModule("R/R-3.6.3")
 
     for key in prepared_metadata.master_file_dict:
@@ -109,14 +109,29 @@ def test_fpTools(useSingleRun, allowDefaults):
         #print(cur_files[8])
         #sys.exit()
 
+def test_ascets(useSingleRun, allowDefaults):
+    clinical_sample_file  = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"
+    facets_dir            = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/run_11-14-22/facets/fix_alt/all/"
+    #facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
 
+    prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
+    prepared_metadata.setSingleRunPerSample(useSingleRun,allowDefaults)
+    prepared_metadata.buildFacetsMeta()
 
+    test_dataset = FacetsDataset(prepared_metadata)
+    test_dataset.buildFacetsDataset()
+    
+    ext_tools = ExtTools(prepared_metadata)
+    #ext_tools.makeMergedFile(MetaDictMap.UNADJUSTED_SEG_FILE, "/juno/work/ccs/pricea2/pipelines/facetsAPI/tests/ascet_test/merged_seg.txt")
+    #ext_tools.runAscets("/juno/work/ccs/pricea2/pipelines/facetsAPI/tests/ascet_test2/")
+    test_dataset.writeReport("/juno/work/ccs/pricea2/pipelines/facetsAPI/tests/ascet_test2/sample_report.txt")
 
 if __name__ == '__main__':
     #clinical_sample_file  = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"
     #facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
-    #test_fpTools(False, False)
-    test_facetsMeta(False, False)
+    #test_tools(False, False)
+    #test_facetsMeta(False, False)
+    test_ascets(True,True)
     #test_facetsDataset(True, True)
     #test_alterationFunctions(False, False)
     #test_facetsPurityByCF()
