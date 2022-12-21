@@ -3,7 +3,7 @@
 ### Initializing a FacetsSegment
 
 The FacetsSegment class represents a single facets segment as represented in a facets run's .seg files. 
-FacetsSegment objects are built automatically as part of a [FacetsRun](FacetsRun.md), and in general should not have to be manually constructed.  
+FacetsSegment objects are built automatically as part of a [FacetsRun](doc/FacetsRun.md), and in general should not have to be manually constructed.  
 
 ### FacetsSegment Variables
 The following variables are available in a FacetsSegment object.  
