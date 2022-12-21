@@ -4,16 +4,16 @@
 
 The FacetsRun class represents a single facets run (a.k.a. fit) as represented in a fit directory in a facets folder.
 For example, a fit folder might be called /default/ or /alt_dipLogR-0.03/.
-FacetsRun objects are built automatically as part of a [FacetsDataset](FacetsDataset.md), and in general should not have to be manually constructed.
-A [FacetsDataset](FacetsDataset.md) will contain a set of FacetsRuns and/or FacetsSamples. A FacetsSample may contain multiple FacetsRuns.
+FacetsRun objects are built automatically as part of a [FacetsDataset](facetsdataset.md), and in general should not have to be manually constructed.
+A [FacetsDataset](facetsdataset.md) will contain a set of FacetsRuns and/or FacetsSamples. A FacetsSample may contain multiple FacetsRuns.
 
 ### FacetsRun Variables
 FacetsRuns contain information about the specific fit, as well as variables that may be necessary when performing
 certain operations such as alteration analysis.  The following variables are available in a FacetsRun object.  
 
 #### These values are part of a Facets Run/Fit and are extracted from files in the assocated run folder.
-* segments - A list of all [FacetsSegments](FacetsSegment.md) associated with this run.
-* genes - A list of all [FacetsGenes](FacetsGene.md) associated with this run.
+* segments - A list of all [FacetsSegments](facetssegment.md) associated with this run.
+* genes - A list of all [FacetsGenes](facetsgene.md) associated with this run.
 * id - The DMP ID for this run.
 * patientId - The patient ID for this run.
 * fitDir - The full path to the fit directory for this run.
