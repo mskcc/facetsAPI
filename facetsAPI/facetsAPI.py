@@ -360,7 +360,7 @@ class FacetsMeta:
             run_verbose = doVerbose
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError in FacetsMeta.setSingleRunPerSample(). Terminating execution.")
+            print ("\t\tError in FacetsMeta.setVerbose(). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
