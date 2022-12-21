@@ -48,39 +48,39 @@ certain operations such as alteration analysis.  The following variables are ava
 
 #### Functions
 * addSegment(seg)
-  * 
+  * This function will add a segment to the segment array of type [FacetsSegment](facetssegment.md). Returns True if successful.
 * removeSegment(seg)
-  * 
+  * This function will remove a segment from the segment array of type [FacetsSegment](facetssegment.md). Returns True if successful.
 * printAllGenes()
-  *
+  * This function will print all [FacetsGenes](facetsgene.md) in the gene array.
 * addGene(gene)
-  *
+  * This function will add a [FacetsGenes](facetsgene.md) to the genes array.  Returns True if successful.
 * removeGene(gene)
-  *
+  * This function will remove a [FacetsGenes](facetsgene.md) from the genes array.  Returns True if successful.
 * getSegmentsByChromAndArm(target_chrom, target_arm)
-  *
+  * This function, given a target chromosome (int) and target arm (str), will return a list of all segments for this sample that fall in the requested regions.
 * getSegmentsByChrom(target_chrom)
-  *
-* calculatePurityByCF(use_base)
-  *
+  * This function, given a target chromosome (int), will return a list of all segments for this sample that fall in the requested regions.
+* calculatePurityByCF(use_base=False)
+  * This function will calculate purity based on all of the segments associated with this sample. Purity is the maximum cf value that is not 1 or NA. If use_base is set to true (default: False), this function will calculate the purity based on the non .em cf values.  Otherwise cf.em will be used.
 * getNumberLossArms(percent_lost)
-  *
+  * This function will return the number of arms with LOH over 'percent_lost' in this sample.
 * getNumberGainArms(percent_gain)
-  *
+  * This function will return the number of arms with GAIN over 'percent_gain' in this sample.
 * getSortedCFs(target_arm)
-  *
-* getCFbyArm()
-  *
+  * This function will sort the self.cfLevel_arms into and return an indexed list of arm levels. It returns two lists, 1 indexed (ignore 0 position), for [[p_arms],[q_arms]].
+* getCFbyArm(target_arm)
+  * This function returns cf data for a specified arm (str), i.e. "1p". 
 * getArmLevelCF(target_arm, match_cf_range=0.01)
-  *
+  * This function will calculate a CF value covering the largest segment of a target_arm. I.E. if an arm is 70% cf=.52 and 30% cf=.23, this function will return .52. match_cf_range is the maximum distance that two segments can be from one another in order to be considered the same CF. This function returns [longest_cf_value, percent_of_arm_covered].
 * mergeCFLevels(lsts)
-  *
+  * This function is for merging CF levels.  Helper for defineCFLevels(). Given a list of levels to merge [[1,3], [2,4], [2,3]] this function should merge the sub-lists into sets where any overlap between sets is given.  In this example this should return [[1,2,3,4]].
 * defineCFLevels(match_cf_range=0.01)
-  *
+  * This function will identify arms that belong on the same level together and assign data for CF values and maps to this FacetsRun object. Uses defined arms and determines the cf levels across all arms. A CF level is a CF value that matches other CF levels in a sample. All samples with the same CFs will be in the same level. match_cf_range is the maximum distance that two segments can be from one another in order to be called at the same level. This function will identify arms that belong on the same level together and assign data for CF values and maps to this FacetsRun object.
 * defineArms()
-  *
+  * Check segments to determine p or q arm. If centromere is crossed, splits the segment into two new segments. 
 * defineSampleLevelAlterationCall(min_percent_arm_cov, min_arm_num)
-  *
+  * 
 * calculateLohAndGains(selected_segs, target_chr, target_arm)
   *
 * defineAllLohAndGains()
