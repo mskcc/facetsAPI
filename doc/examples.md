@@ -10,8 +10,8 @@ manipulate or output it as they require.
 from facetsAPI import *
 
 if __name__ == '__main__':
-    clinical_sample_file  = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"
-    facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
+    clinical_sample_file  = "/path/to/data_clinical_sample.oncokb.txt"
+    facets_dir            = "/path/to/facets/all/"
 
     #Initialize FacetsMeta. This will build all relevant metadata we need going forward.
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, True, "purity", "all_meta.dat")
@@ -36,8 +36,8 @@ import os
 from facetsAPI import *
 
 if __name__ == '__main__':
-    clinical_sample_file  = "/work/ccs/shared/resources/impact/knowledge-systems/11-14-22/oncokb-annotated-msk-impact/data_clinical_sample.oncokb.txt"
-    facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
+    clinical_sample_file  = "/path/to/data_clinical_sample.oncokb.txt"
+    facets_dir            = "/path/to/facets/all/"
 
     #Initialize FacetsMeta. This will build all relevant metadata we need going forward.
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
@@ -72,8 +72,8 @@ import os
 from facetsAPI import *
 
 if __name__ == '__main__':
-    clinical_sample_file  = "/work/ccs/shared/resources/impact/knowledge-systems/11-14-22/oncokb-annotated-msk-impact/data_clinical_sample.oncokb.txt"
-    facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
+    clinical_sample_file  = "/path/to/data_clinical_sample.oncokb.txt"
+    facets_dir            = "/path/to/facets/all/"
 
     #Initialize FacetsMeta. This will build all relevant metadata we need going forward.
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
@@ -104,8 +104,8 @@ import os
 from facetsAPI import *
 
 if __name__ == '__main__':
-    clinical_sample_file  = "/work/ccs/shared/resources/impact/knowledge-systems/11-14-22/oncokb-annotated-msk-impact/data_clinical_sample.oncokb.txt"
-    facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
+   clinical_sample_file   = "/path/to/data_clinical_sample.oncokb.txt"
+    facets_dir            = "/path/to/facets/all/"
 
     #Initialize FacetsMeta. This will build all relevant metadata we need going forward.
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
@@ -140,7 +140,7 @@ from facetsAPI import *
 #If a maf is missing anywhere, then the maf generation and facetsPreview::generate_genomic_annotations() function
 #will be run for the sample.
 def correct_missing_annotations(useSingleRun, allowDefaults):
-    clinical_sample_file  = ""
+    clinical_sample_file  = "" #If this is empty, then clinical data isnt parsed, but because we are only interested in directory structure, we don't need it for this script.
     facets_dir            = "/my/facets/folder/all/"
 
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
