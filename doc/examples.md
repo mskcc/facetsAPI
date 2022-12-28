@@ -93,17 +93,13 @@ if __name__ == '__main__':
 
 ```
 
-### Produce a report with information from a select set of samples.
+#### Produce a report with information from a select set of samples.
 
 A researcher wanted to look at several pieces of data for a specific set of FACETS samples.  The following code accepts a sample list from a file and compiles an output report with the relevant information for the requested samples.
 
 ```
 import sys
 import os
-
-#change this to wherever the facetsAPI is stored
-sys.path.insert(1, '/juno/work/ccs/pricea2/pipelines/facetsAPI')
-# sys.path.insert(1, '/juno/work/ccs/orgeraj/facetsAPI')
 
 from facetsAPI import *
 
