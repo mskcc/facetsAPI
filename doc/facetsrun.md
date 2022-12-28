@@ -80,26 +80,26 @@ certain operations such as alteration analysis.  The following variables are ava
 * defineArms()
   * Check segments to determine p or q arm. If centromere is crossed, splits the segment into two new segments. 
 * defineSampleLevelAlterationCall(min_percent_arm_cov, min_arm_num)
-  * 
+  * This function will check this sample and determine if it is a hypoploidy sample. It will make these determinations based on a minimum percent of arm covered for min_arm_num of samples. This function will set isHypoploidy and isGainHeavy for this FacetsRun object.
 * calculateLohAndGains(selected_segs, target_chr, target_arm)
-  *
+  * This is a helper function for defineAllLohAndGains().  It will perform LoH and Gain calculations on a set of segments for a given chromosome and arm.
 * defineAllLohAndGains()
-  *
+  * This function will process all segments for this FacetsRun object and populate the 'alterations' map.  A run is determined to be LoH if it is 0 LCN for a percentage greater than that defined in the [FacetsSegment](facetssegment.md) percent_arm_loh threshold variable, considering all segments for each arm. A gain is determined by a correspondingly TCN greater than [FacetsSegment](facetssegment.md)'s min_gain_tcn and percent_arm_gain threshold variables.  This function will process all chromosomes/arms in this FacetsRun object.
 * printAllSegments()
-  *
+  * Print all segments in the segment array.
 * printTargetSegment(segNumber)
-  *
+  * Print a specific segment by index, where segNumber is the index of the segment array to print.
 * printSample()
-  *
+  * Print a summary of this sample.
 * parseOut(out_file)
-  *
+  * This function accepts a path to a .out file from a facets directory. It will extract and return purity, cval, ploidy, and dipLogR values as a list. Returns: [purity,cval,ploidy,dipLogR]
 * parseGeneLevel(gene_level_file)
-  *
+  * This function accepts a path to a .gene_level.txt file and returns a list of lists containing data representing the gene level file. Returns [[gene1,start,end...],[gene2,start,end...]]
 * parseSampleQC(qc_file, expected_cval)
-  *
+  * This function accepts a path to a .sample.qc.txt file and an expected cval which can be identified with the parseOut function.  It returns a list containing data for whole genome duplication, fraction genome altered, and fraction LOH. Returns: [wgd,fga,frac_loh]
 * parseFacetsQC(sample_dir_map)
-  *
+  * This function accepts the directory map list for a sample. It will extract and return the "facets_qc" value for the target sample.
 * parseCNCF(cncf_file, adjseg)
-  *
+  * This function accepts a CNCF file path and parses it for data. It will build and return a list of FacetsSegment type objects representing the CNCF.
 * buildFacetsRun(sample_id, facets_metadata)
-  *
+  * This function accepts a sample ID and parses all relevant files and assembles all desired values.  It creates and returns an object of type FacetsRun with all manditory variables and fields populated.  It does not run alteration analysis, which can be run on all FacetsRuns in a [FacetsDataset](facetsdataset.md) by using the FacetsDataset.runAlterationAnalysis() function.
