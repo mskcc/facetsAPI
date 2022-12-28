@@ -38,7 +38,7 @@ previously processed data can simply be loaded into the FacetsMeta object.
 ### Data Maps
 The FacetsMeta object keeps track of a variety of id -> value maps.  
 
- * master_file_dict - A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, facets_qc_file, selected_fit_dir, gene_file, adjseg_file, ccf.maf, nonsignedout.ccf.maf]}
+* master_file_dict - A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, ..., ]}.  As the master file dictionary contains a large number of file types and may expand over time, please only make calls to this file dictionary using the [MetaDictMap](metadictmap.md) class.  For example, to access an adjusted .seg file, use `master_file_dict.get(id)[MetaDictMap.ADJUSTED_SEG_FILE]`
 * cancer_type_map - A map of sample ids to cancer types.
 * cancer_type_detail_map - A map of sample ids to cancer type detailed.
 * patient_id_map - A map of sample ids to patient ids.
