@@ -7,14 +7,14 @@ files and folders in the FACETS repository.
 ### Initializing FacetsMeta
 
 The initialization function of a FacetsMeta class requires 4 parameters:
-* Data clinical sample file path.
+* Data clinical sample file path. (Optional)
 * FACETS repository base path.
 * Use "purity" or "hisens" data.
 * A path to store a persistent data file for this object. (Optional)
 
 The **data clinical sample file** is updated daily by the DMP-2022 knowledgebase and can be obtained through their github page.  
 Note that not all samples present in the data_clinical_sample.txt file will necessarily be present in a FACETS file repository depending on
-factors such as change in consent, most recent FACETS update run date, or custom repositories.  
+factors such as change in consent, most recent FACETS update run date, or custom repositories.  **NOTE: If this parameter is an empty string, then the provided FACETS repository base path will be scanned to produce the set of samples present in the directory.  This will mean that all samples/fits in the folder will be included in the FacetsMeta object, but clinical metadata from the data_clinical_sample file will not be available, and some downstream functions will be restricted.**
 
 The **FACETS repository base path** represents the base directory of a FACETS repository file system. 
 For example, the main Impact FACETS repository is located on Juno at `/work/ccs/shared/resources/impact/facets/all/`.
@@ -35,6 +35,22 @@ By providing a path to this parameter, on the initial run, a binary version of t
 In subsequent runs, if the indicated path already points to a file, instead of parsing the clinical data and scanning the facets repository, the 
 previously processed data can simply be loaded into the FacetsMeta object.  
 
+### Data Maps
+The FacetsMeta object keeps track of a variety of id -> value maps.  
+
+* master_file_dict - A map of relevant files for each sample. {id: [out_file, cncf_file, qc_file, ..., ]}.  As the master file dictionary contains a large number of file types and may expand over time, please only make calls to this file dictionary using the [MetaDictMap](metadictmap.md) class.  For example, to access an adjusted .seg file, use `master_file_dict.get(id)[MetaDictMap.ADJUSTED_SEG_FILE]`
+* cancer_type_map - A map of sample ids to cancer types.
+* cancer_type_detail_map - A map of sample ids to cancer type detailed.
+* patient_id_map - A map of sample ids to patient ids.
+* clinical_purity_map - A map of purity values from the clinical sample file.
+* onkotree_code_map - A map of onkotree codes.
+* cvr_tmb_score_map - A map of cvr tmb scores from the clinical sample file.
+* msi_score_map - A map of msi scores.
+* long_id_map - A map of sample ids to their corresponding long_ids.  id -> [long_id1, long_id2...]
+* samples_from_file - A list of samples from a file that should be selected for this object. Populated by selectSamplesFromFile(input_file).
+* fit_map - A map of id -> [best/acceptable/default, fit_path].
+
+
 ### Functions
 
 * printLogo() 
@@ -54,7 +70,8 @@ previously processed data can simply be loaded into the FacetsMeta object.
   * This function will set this FacetsMeta object to select a single run per sample based on identified best or acceptable fits, as defined in the facets manifest for any given sample.  If the first parameter, useSingleSample, is set to True, then for each sample, a single run will be selected if a best or acceptable fit is selected. If useSingleSample is set to True, then it is also possible to allow default fits to be selected in cased where no best or acceptable fit is indicated. Default for both of these parameters is set to False.
 * setVerbose(bool activateVerbose)
   * This function accepts True or False as a parameter, and will activate verbose mode if set to True.  This will make warning messages visible during runtime and show more details of data processing for various processes.  By default, verbose mode is set to False.   
-
+* selectSamplesFromFile(input_file)
+  * This function accepts a file with a single sample ID per line and populates this object's samples_from_file list.  If this list is populated and build_from_file_listing is true, when parseClinicalData runs it will only include samples listed in the provided file. Expected file format is one sample per line.  Expected sample format is P-12345678-TXX-IMX.
 
 ### Additional Data
 
@@ -100,6 +117,19 @@ previously processed data can simply be loaded into the FacetsMeta object.
   
 ```
 
+```python
+  # This will build a FacetsMeta object, selecting a best/acceptable run for each sample 
+  # and includes default fits when best/acceptable is not indicated. With the clinical
+  # sample file not provided, the run will be based on what is present in the facets_dir.
+  # Note that some clinical metadata will be unavailable in this scenario for downstream analysis.
+  
+  clinical_sample_file  = ""
+  facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
+  prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity", "all_meta.dat")
+  prepared_metadata.setSingleRunPerSample(True, True)
+  prepared_metadata.buildFacetsMeta()
+  
+```
 
 ```python
   # This will build a FacetsMeta object that includes all samples and runs. 
