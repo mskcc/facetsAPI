@@ -1112,13 +1112,17 @@ class FacetsDataset:
 
                 for curSample in self.runList:
                     #print("hi" + curSample.cancerType)
-                    curSample.printSample()
+                    if curSample.id == "P-0054843-T01-IM6" or curSample.id == "P-0058941-T01-IM7":
+                        #print("SKIP")
+                        continue
+
+                    #curSample.printSample()
                     curLineString = ""
-                    curLineString += curSample.id + "\t"
-                    curLineString += curSample.cancerType + "\t"
-                    curLineString += curSample.cancerTypeDetail + "\t"
+                    curLineString += str(curSample.id) + "\t"
+                    curLineString += str(curSample.cancerType) + "\t"
+                    curLineString += str(curSample.cancerTypeDetail) + "\t"
                     curLineString += str(curSample.purity) + "\t"
-                    curLineString += curSample.onkoCode + "\t"
+                    curLineString += str(curSample.onkoCode) + "\t"
                     curLineString += str(curSample.tmb) + "\t"
                     curLineString += str(curSample.msi) + "\t"
                     curLineString += str(curSample.wgd) + "\t"
@@ -2515,13 +2519,13 @@ class FacetsRun:
                         #Split into two segments around the centromere.
                         seg1_newStart = cur_seg.start
                         seg1_newEnd   = cur_chrom_ranges[1] - 1
-                        new_Seg1      = FacetsSegment(cur_seg.chrom,seg1_newStart,seg1_newEnd,cur_seg.cnlr_median,cur_seg.cf,cur_seg.cf_base,cur_seg.tcn,cur_seg.lcn)
+                        new_Seg1      = FacetsSegment(cur_seg.chrom,seg1_newStart,seg1_newEnd,cur_seg.cnlr_median,cur_seg.cf,cur_seg.cf_base,cur_seg.tcn,cur_seg.lcn,cur_seg.num_mark, cur_seg.nhet, cur_seg.mafR, cur_seg.segclust, cur_seg.cnlr_median_clust, cur_seg.mafR_clust, cur_seg.adj_mean)
                         new_Seg1.arm  = str(cur_seg.chrom) + "p"
                         new_Seg1.percentArm = float(new_Seg1.length) / float(cur_chrom_ranges[1])
 
                         seg2_newStart = cur_chrom_ranges[2] + 1
                         seg2_newEnd   = cur_seg.end
-                        new_Seg2      = FacetsSegment(cur_seg.chrom,seg2_newStart,seg2_newEnd,cur_seg.cnlr_median,cur_seg.cf,cur_seg.cf_base,cur_seg.tcn,cur_seg.lcn)
+                        new_Seg2      = FacetsSegment(cur_seg.chrom,seg2_newStart,seg2_newEnd,cur_seg.cnlr_median,cur_seg.cf,cur_seg.cf_base,cur_seg.tcn,cur_seg.lcn,cur_seg.num_mark, cur_seg.nhet, cur_seg.mafR, cur_seg.segclust, cur_seg.cnlr_median_clust, cur_seg.mafR_clust, cur_seg.adj_mean)
                         new_Seg2.arm  = str(cur_seg.chrom) + "q"
                         new_Seg2.percentArm = float(new_Seg2.length) / float(cur_chrom_ranges[3])
 

@@ -28,5 +28,5 @@ if __name__ == '__main__':
 
     ext_tools = ExtTools(prepared_metadata)
     #ext_tools.makeMergedFile(MetaDictMap.UNADJUSTED_SEG_FILE, "/juno/work/ccs/pricea2/pipelines/facetsAPI/tests/ascet_test/merged_seg.txt")
-    ext_tools.runAscets("/work/ccs/shared/tmp/dmt_aneuploidy/")
-    test_dataset.writeReport("/work/ccs/shared/tmp/dmt_aneuploidy/sample_report.txt")
+    ext_tools.runAscets("/juno/work/ccs/pricea2/pipelines/facetsAPI/tests/ascet_test/unadjusted/", ref_genome_coords="hg19", min_arm_breadth=0.5, keep_noise=False, arm_alt_frac_thresh=0.7, use_adjusted=True)
+    #test_dataset.writeReport("/juno/work/ccs/pricea2/pipelines/facetsAPI/tests/ascet_test/unadjusted/sample_report.txt")

@@ -25,8 +25,3 @@ if __name__ == '__main__':
 
     #Write output.
     hypo_dataset.writeAlterationData("all_hypoploidy.txt")
-
-
-
-
-
