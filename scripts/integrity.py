@@ -12,11 +12,11 @@ from facetsAPI import *
 
 def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
     """
-    This script will check the integrity of the entered Facets dataset is it has the proper file structure.
+    This script will check the integrity of the entered Facets dataset if it has the proper file structure.
         Any empty files (size 0 bytes). 
         Any missing files (just don't exist)
-        All files have the correct number of columns. (For example, some files qc file were missing WGD columns in rare cases).-
-        All files have existing bam files that in an expected size range. (Some bams run on aug 9 are corrupted and failed in a recent run, although they worked in previous runs.)-
+        All files have the correct number of columns. (For example, some files qc file were missing WGD columns in rare cases).
+        All files have existing bam files that in an expected size range. (Some bams run on aug 9 are corrupted and failed in a recent run, although they worked in previous runs.)
         Manifest files do not have multiple fits of the same type. (I.e. should not have 2+ "best fit" options)
         All fits listed in the manifest file should have corresponding fit folders, and associated files.
         All files listed in the cohort_level manifest file have an associated folder.
@@ -38,26 +38,26 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
                                                 inFacetsDataset.ref_facetsMeta will replace te input FacetsMeta object if there 
                                                 was one. 
     Outputs:
-    FACETSintegrity_{datetime}.tsv : A TSV containing the data collected from integrity.py
-    Cols are as such : 
-    ID : Name of the sample folder
-    emptyfiles:  Files that have a size of 0 bytes but do exist
-    missing_filesin_samplefolder: Files that do not exist in the sample folder and should be there
-    MissingfilesinFitfolder:  Files that do not exist in the fit folder but should be there
-    missingcols:  Files that are missing columns from the fit folder
-    tumorbam_size_pass: The tumor bam file is within two standard deviations of the mean file size
-    normalbam_size_pass: The tumor bam file is within two standard deviations of the mean file size
-    manifest_file_labelerror: Manifest files that have multiple fits of the same type
-    manifest_folder_missing:  A fit in the manifest does not have the fit folder
-    Consent:  12245-a consent.  1 if consented
-    FitCount: Number of fits
-    In_Clinical_file:  If constructed from facetsMeta this will be 1 if the sample is in the clincal file. 
+        FACETSintegrity_{datetime}.tsv : A TSV containing the data collected from integrity.py
+        Cols are as such : 
+            ID : Name of the sample folder
+            emptyfiles:  Files that have a size of 0 bytes but do exist
+            missing_filesin_samplefolder: Files that do not exist in the sample folder and should be there
+            MissingfilesinFitfolder:  Files that do not exist in the fit folder but should be there
+            missingcols:  Files that are missing columns from the fit folder
+            tumorbam_size_pass: The tumor bam file is within two standard deviations of the mean file size
+            normalbam_size_pass: The tumor bam file is within two standard deviations of the mean file size
+            manifest_file_labelerror: Manifest files that have multiple fits of the same type
+            manifest_folder_missing:  A fit in the manifest does not have the fit folder
+            Consent:  12245-a consent.  1 if consented
+            FitCount: Number of fits
+            In_Clinical_file:  If constructed from facetsMeta this will be 1 if the sample is in the clincal file. 
 
-    Also in terminal are printedseveral metrics such as: 
-    Total number of samples, 
-    number of fits, 
-    Number of Best, acceptable, default, and no fit
-    Number of samples with multiple normals but same tumor                                                  
+        Also in terminal are printed several metrics such as: 
+            Total number of samples, 
+            Number of fits, 
+            Number of Best, acceptable, default, and no fit
+            Number of samples with multiple normals but same tumor                                                  
     """ 
 
 
@@ -125,7 +125,7 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
             else:
                 line = line.split("\t")
                 consent_dict[line[0]] = line[7]
-                print(line[7])
+                # print(line[7])
     print("consent done")
     #######################################
 
@@ -135,19 +135,27 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
         print("data_clincial table creation")
         # clinical_sample_file  = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"
         header = True
-        clinical_sample_dict = {}
+        clinical_sample_dict = set()
         with open(inFacetsMeta.clinical_sample_file,"r") as clinf:
-            if header:
+
+            for line in clinf:
+                if header:
                     header =False
-                    pass
-            else:
-                line = line.split("\t")
-                clinical_sample_dict.add(line[0]) 
-                
+                    
+                else:
+                    
+                    line = line.split("\t")
+                    clinical_sample_dict.add(line[0].strip()) 
+                    print(line[0].strip())
+                    
         print("data_clincial table done")
         ############################################
+    print(clinical_sample_dict)
 
 
+
+
+    
     if EvalDirectory: 
         startdir = os.listdir(inFacetsMeta.facets_repo_path)
         print(startdir[0])
@@ -203,6 +211,7 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
                                                     0, #Has consent: 1 if consented
                                                     0, #number of fits
                                                     [], #fits with two entries in Manifest
+                                                    [],
                                                     0] #in clinical folder: 1 if so
 
             if normalID not in normaldict: 
@@ -226,25 +235,26 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
                         if row["fit_name"] not in fit_name_li:
                             fit_name_li.add(row["fit_name"])
                         else:
-                            patientIDorganized[samplefolder][9].append(row["path"]) #add something
-                        
+                            patientIDorganized[samplefolder][9].append(row["path"]) 
                         #checks if manifest folder contains multiple best fits
-                        if best_fit_found and "best_fit" in row['review_status']:
+                        if best_fit_found and "best" in row['review_status']:
                             patientIDorganized[samplefolder][5] = 1 #1 if multiple best fits
-                        else:
-                            best_fit_found ==True
-
+                        fit_num+=1
+                        
                     #fitstats 
                     if "best" in row['review_status']:
                         fitstats[0]+=1
-                    elif "acceptable" in row['review_status']:
+                        best_fit_found ==True
+                    if "acceptable" in row['review_status']:
                         fitstats[1]+=1
-                    elif "default" in row['review_status']:
+                    if "default" in row['fit_name']:  #this is actually a different col than the other counts 
                         fitstats[2]+=1
-                    elif "not_reviewed" in row['review_status']:
+                    if "not_reviewed" in row['review_status']:
                         fitstats[3]+=1
-                    elif "no_fit" in row['review_status']:
+                    if "no_fit" in row['review_status']:
                         fitstats[4]+=1
+
+
                     # print(row['review_status'])
 
                     #Adjust fitnumber
@@ -285,11 +295,12 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
 
             if EvalDirectory:
                     
-                if tumorID in clinical_sample_dict:
-                    patientIDorganized[samplefolder][9] = 1
+                if tumorID.strip() in clinical_sample_dict:
+                    patientIDorganized[samplefolder][11] = 1
+                    print(tumorID.strip())
 
             else:
-                patientIDorganized[samplefolder][9] = None
+                patientIDorganized[samplefolder][11] = None
 
             try:
                 for runfi in os.listdir(samplepath):
@@ -318,11 +329,11 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
                                 patientIDorganized[samplefolder][0].append(samplepath+"/"+runfi+"/"+fi)
 
                             fi_li = fi.split('_')
-                            print(fi_li)
+                            # print(fi_li)
 
                             if len(fi_li)>3:
                                 #this takes care of hisens and purity_diplogR.adj style files
-                                print(">3")
+                                # print(">3")
                                 if fi.endswith("png"):
                                     try:
                                         must_have_files.remove(fi_li[2])
@@ -343,7 +354,7 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
                                             print(samplepath+"/"+runfi+"/"+fi)
                                         patientIDorganized[samplefolder][3].append(samplepath+"/"+runfi+"/"+fi)  #Files missing cols 
                             elif len(fi_li)==3:
-                                print("==3")
+                                # print("==3")
                                 if "level" in fi_li[2]:
                                     #gene_level
                                     # print(fi_li[1].split(".")[1]+"_"+fi_li[2])
@@ -393,14 +404,33 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
 
                                     # print(fi_li)
 
-                                    if fi_li[2].endswith("out") or fi_li[2].endswith("png") or fi_li[2].endswith("Rdata"):
+                                    if fi_li[2].endswith("out") or fi_li[2].endswith("png") or fi_li[2].endswith("Rdata") or fi_li[2].endswith("purity.seg") or fi_li[2].endswith("hisens.seg"): 
                                         pass
+                                    
                                     else:
                                         with open(samplepath+"/"+runfi+"/"+fi) as segfile:
-                                            for line in segfile:
-                                                header=set(line.replace("\n","").split("\t"))
-                                                # print(line.split("\t"))
-                                                break
+                                            if fi_li[2] == "hisens.cncf.txt" or fi_li[2] == "purity.cncf.txt":
+                                                headert=True
+                                                chromset = set()
+                                                for line in segfile:
+                                                    if headert:
+                                                        header=set(line.replace("\n","").split("\t"))
+                                                        headert=False
+
+                                                    else:
+                                                        sline = line.split("\t")
+                                                        chromset.add(sline[1])
+                                                        
+                                            else:
+                                                    
+                                                for line in segfile:
+                                                    header=set(line.replace("\n","").split("\t"))
+                                                    # print(line.split("\t"))
+                                                    
+                                                    break
+
+                                        if len(chromset)<23:
+                                            patientIDorganized[samplefolder][10].append(samplepath+"/"+runfi+"/"+fi)
                                         headtst = {"ID", "chrom", "loc.start", "loc.end", "seg", "num.mark", "nhet", "cnlr.median", "mafR", "segclust", "cnlr.median.clust", "mafR.clust", "cf", "tcn", "lcn", "cf.em", "tcn.em", "lcn.em"}
                                         if header==headtst:
                                             pass
@@ -495,7 +525,8 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
                             if len(must_have_files) !=0:
                                 for m in must_have_files:
                                     #Missing files 
-                                    if m != "purity.seg" or m !=  "hisens.seg":
+                                    if m != "purity.seg" and m !="hisens.seg":
+                                        print("??{m}".format(m=m))
                                         patientIDorganized[samplefolder][2].append(samplepath+runfi+"/*"+m)
                                     
                         
@@ -533,6 +564,7 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
                                         print(header.difference(headtst))
                                         print("facets_qc.txt")
                                     patientIDorganized[samplefolder][3].append(samplepath+"/"+runfi) #Files missing cols 
+
                         if runfi.endswith("nonsignedout.maf"):
                             must_have_outerfiles.remove("nonsignedout.maf")
                             with open(samplepath+"/"+runfi) as segfile:
@@ -585,17 +617,19 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
         # print (bcolors.ENDC)
 
 
+    if patientIDorganized[keyID][10] == []:
+        patientIDorganized[keyID][10] = [""]
 
     if EvalDirectory:
 
-        outfile="ID\temptyfiles\tmissing_filesin_samplefolder\tMissingfilesinFitfolder\tmissingcols\ttumorbam_size_pass\tnormalbam_size_pass\tmanifest_file_labelerror\tmanifest_folder_missing\tConsent\tFitCount\tmultiple_in_manifest\tIn_Clinical_file\n"
+        outfile="ID\temptyfiles\tmissing_filesin_samplefolder\tMissingfilesinFitfolder\tmissingcols\ttumorbam_size_pass\tnormalbam_size_pass\tmanifest_file_labelerror\tmanifest_folder_missing\tConsent\tFitCount\tmultiple_in_manifest\tCNCF_missing_chrom\tIn_Clinical_file\n"
         for keyID in patientIDorganized: 
-            outfile+= keyID + "\t" + ",".join(patientIDorganized[keyID][0])+ "\t" + ",".join(patientIDorganized[keyID][1])+ "\t" + ",".join(patientIDorganized[keyID][2]) + "\t" + ",".join(patientIDorganized[keyID][3]) + "\t" + str(patientIDorganized[keyID][4][1]) + '\t' + str(patientIDorganized[keyID][4][0]) + "\t" + ",".join(patientIDorganized[keyID][5]) + "\t" + ",".join(patientIDorganized[keyID][6]) + "\t"+str(patientIDorganized[keyID][7]) + "\t"+str(patientIDorganized[keyID][8]) + "\t" + str(patientIDorganized[keyID][9]) + "\t" + str(patientIDorganized[keyID][10]) + "\n"
+            outfile+= keyID + "\t" + ",".join(patientIDorganized[keyID][0])+ "\t" + ",".join(patientIDorganized[keyID][1])+ "\t" + ",".join(patientIDorganized[keyID][2]) + "\t" + ",".join(patientIDorganized[keyID][3]) + "\t" + str(patientIDorganized[keyID][4][1]) + '\t' + str(patientIDorganized[keyID][4][0]) + "\t" + ",".join(patientIDorganized[keyID][5]) + "\t" + ",".join(patientIDorganized[keyID][6]) + "\t"+str(patientIDorganized[keyID][7]) + "\t"+",".join(patientIDorganized[keyID][8]) + "\t" + str(patientIDorganized[keyID][9]) + "\t" + ",".join(patientIDorganized[keyID][10]) + str(patientIDorganized[keyID][11]) + "\n"
 
     else:
-        outfile="ID\temptyfiles\tmissing_filesin_samplefolder\tMissingfilesinFitfolder\tmissingcols\ttumorbam_size_pass\tnormalbam_size_pass\tmanifest_file_labelerror\tmanifest_folder_missing\tConsent\tFitCount\tmultiple_in_manifest\n"
+        outfile="ID\temptyfiles\tmissing_filesin_samplefolder\tMissingfilesinFitfolder\tmissingcols\ttumorbam_size_pass\tnormalbam_size_pass\tmanifest_file_labelerror\tmanifest_folder_missing\tConsent\tFitCount\tmultiple_in_manifest\tCNCF_missing_chrom\n"
         for keyID in patientIDorganized: 
-            outfile+= keyID + "\t" + ",".join(patientIDorganized[keyID][0])+ "\t" + ",".join(patientIDorganized[keyID][1])+ "\t" + ",".join(patientIDorganized[keyID][2]) + "\t" + ",".join(patientIDorganized[keyID][3]) + "\t" + str(patientIDorganized[keyID][4][1]) + '\t' + str(patientIDorganized[keyID][4][0]) + "\t" + ",".join(patientIDorganized[keyID][5]) + "\t" + ",".join(patientIDorganized[keyID][6]) + "\t"+str(patientIDorganized[keyID][7]) + "\t"+str(patientIDorganized[keyID][8])+ "\t" + str(patientIDorganized[keyID][9])+ "\n"
+            outfile+= keyID + "\t" + ",".join(patientIDorganized[keyID][0])+ "\t" + ",".join(patientIDorganized[keyID][1])+ "\t" + ",".join(patientIDorganized[keyID][2]) + "\t" + ",".join(patientIDorganized[keyID][3]) + "\t" + str(patientIDorganized[keyID][4][1]) + '\t' + str(patientIDorganized[keyID][4][0]) + "\t" + ",".join(patientIDorganized[keyID][5]) + "\t" + ",".join(patientIDorganized[keyID][6]) + "\t"+str(patientIDorganized[keyID][7]) + "\t"+",".join(patientIDorganized[keyID][8])+ "\t" + str(patientIDorganized[keyID][9])+ ",".join(patientIDorganized[keyID][10])+"\n"
 
 
     date = datetime.now()
@@ -614,29 +648,3 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
     print("Many normals vs same tumor number:" + str(manyNormal_sameTumor))
 
 
-def test_facetsMeta(useSingleRun, allowDefaults):
-    clinical_sample_file  = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"
-    # facets_dir            = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/run_11-14-22/facets/fix_alt/all/"
-    facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
-
-    #Initialize FacetsMeta. This will build all relevant metadata we need going forward.
-    prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
-    prepared_metadata.setSingleRunPerSample(useSingleRun,allowDefaults)
-    # prepared_metadata.buildFacetsMeta()
-    # test_dataset = FacetsDataset(prepared_metadata)
-    # #test_dataset.setCancerTypeFilter(["Lung"])
-    # test_dataset.buildFacetsDataset()
-    # integrity_check(test_dataset, EvalDirectory = False)
-    # test_dataset.setPurityFilter(.5,1)
-    integrity_check(inFacetsMeta = prepared_metadata)
-    # integrity_check(inFacetsDataset = test_dataset)
-
-
-
-
-
-
-
-
-if __name__ == '__main__':
-    test_facetsMeta(True, True)
