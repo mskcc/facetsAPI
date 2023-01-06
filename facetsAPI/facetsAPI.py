@@ -5,8 +5,14 @@ import os.path
 import os
 import glob
 import pandas as pd
+import numpy as np
 import pickle
-from datetime import date
+
+import statistics
+from datetime import datetime,time
+import matplotlib.pyplot as plt
+
+
 
 ######################
 # bcolors:    This class is a set of color codes that can be concatenated in strings to change output in the terminal.
@@ -341,6 +347,7 @@ class FacetsMeta:
             self.hasClinicalMeta = True
 
         #Data structures and storage.
+
         self.master_file_dict       = {} # A map of relevant files for each sample. See MetaDictMap for ordering. {id -> [file list]}
 
         #These come from data_clinical_sample.
@@ -550,41 +557,52 @@ class FacetsMeta:
                         continue
 
                     cur_manifest = pd.read_csv(cur_manifest_file, skiprows=1, sep="\t", low_memory=False)
-                    manifest_data = cur_manifest[['path', 'review_status', 'fit_name']]
+                    manifest_data = cur_manifest[['path', 'review_status', 'fit_name', 'reviewed_by']]
 
                     #If we are looking for individual fits we will want to look for the best and consider default fits.
                     if FacetsMeta.selectSingleRun:
                         #Grab important data for best/acceptable/default fits.
                         target_best_fit = manifest_data.loc[manifest_data['review_status'].isin(["reviewed_best_fit"])]
                         target_accept_fit = manifest_data.loc[manifest_data['review_status'].isin(["reviewed_acceptable_fit"])]
+                        # print(target_best_fit)
                         if(FacetsMeta.use_unreviewed_defaults):
                             target_default_fit = manifest_data.loc[manifest_data['fit_name'].isin(["default"])]
-
+                        # print(target_default_fit)
                         selected_fit_dir = ""
                         #If there is a best fit available, we want to use that.
                         if(not target_best_fit.empty):
                             best_fit_list = target_best_fit.values.tolist()[0]
+                            # print(best_fit_list)
                             if best_fit_list[0][-1] != '/':
                                 best_fit_list[0] = best_fit_list[0] + "/"
                             selected_fit_dir  = best_fit_list[0] + best_fit_list[2] + "/"
-                            num_best_fits = num_best_fits + 1
+
+                            curr_fit_status   =  best_fit_list[1] + "#" + best_fit_list[2] + "#" + str(best_fit_list[3])
+                            num_best_fits = num_best_fits + 1     
                             self.fit_map[id] = ["Best", selected_fit_dir]    
+
                         #If there is no best fit, check for acceptable fits.
                         elif(not target_accept_fit.empty):
                             accept_fit_list = target_accept_fit.values.tolist()[0]
                             if accept_fit_list[0][-1] != '/':
                                 accept_fit_list[0] = accept_fit_list[0] + "/"
                             selected_fit_dir  = accept_fit_list[0] + accept_fit_list[2] + "/"
+                            curr_fit_status   = accept_fit_list[1] + "#" + accept_fit_list[2] + "#" + str(accept_fit_list[3])
+
                             num_acceptable_fits = num_acceptable_fits + 1
                             self.fit_map[id] = ["Acceptable", selected_fit_dir]
                         #If we have nothing still, and are accepting default fits, use that.
                         elif(FacetsMeta.use_unreviewed_defaults):
                             default_fit_list = target_default_fit.values.tolist()[0]
+                            # print(default_fit_list)
                             if default_fit_list[0][-1] != '/':
                                 default_fit_list[0] = default_fit_list[0] + "/"
                             selected_fit_dir  = default_fit_list[0] + default_fit_list[2] + "/"
                             num_default_fits = num_default_fits + 1
+
+                            curr_fit_status = default_fit_list[1] + "#" + default_fit_list[2] + "#" + str(default_fit_list[3])
                             self.fit_map[id] = ["Default", selected_fit_dir]
+
                         #Nothing we want was available, move on from this sample.
                         else:
                             continue
@@ -635,7 +653,9 @@ class FacetsMeta:
                             unadjseg_file   = cur_unadjseq[0]
 
                         self.long_id_map[id]   = [id_with_normal]
-                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file]
+
+                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file, curr_fit_status]
+
                         #print(str([out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file]))
                         #break
                     #If we want to read in all fits for each sample, we need to iterate the manifest and build each one out.
@@ -704,9 +724,11 @@ class FacetsMeta:
                                 gene_level_file = cur_gene_level[0]
                                 adjseg_file     = cur_adjseq[0]
                                 unadjseg_file   = cur_unadjseq[0]
+                                curr_fit_status   = row["review_status"] + "#" + row["fit_name"] + "#" + str(row["reviewed_by"])
 
                             cur_run_list.append(long_id)
-                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file]
+                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file, curr_fit_status]
+
                             #print(str([out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file]))
                             #sys.exit()
                         self.long_id_map[id] = cur_run_list
@@ -728,7 +750,7 @@ class FacetsMeta:
 
         except Exception as e:
             print (bcolors.FAIL)
-            print ("\t\tError processing clinical data. Terminating execution.")
+            print ("\t\tError processing clinical data (492). Terminating execution.")
             print (e)
             print (bcolors.ENDC)
             sys.exit()
@@ -782,6 +804,8 @@ class FacetsDataset:
         self.filterMSI = False
         self.minMSI    = -1.0
         self.maxMSI    = -1.0
+        self.num_build_failed = 0
+        self.num_file_failed = 0
 
     #This function will write a report for the samples in the current dataset to the given outfile.
     def writeReport(self, outfile_name):
@@ -819,6 +843,188 @@ class FacetsDataset:
             print (bcolors.ENDC)
             sys.exit()  
 
+    def writeDatasetSummary(self):
+        """
+        This function outputs a text file containing information that summarizes a facets dataset
+        This includes metrics like number of best/acceptable fits, number of failed samples that couldn't build, number of cancer types, etc
+        The output contains the date and time.  
+        """
+
+        
+        for sample in self.sampleList:
+            pass
+        
+        status_dict         = {}
+        cancer_type_dict    = {}
+        oncocode_dict       = {}
+        msi_count           = 0
+        msi_li              = []
+        wgd_count           = 0
+        purity_li           = []
+        bestfit_count       = 0
+        acceptablefit_count = 0
+        default_count       = 0
+
+
+        for run in self.runList:
+
+            if run.review_status not in status_dict:
+                status_dict[run.review_status] = 0
+            status_dict[run.review_status] += 1
+
+            if run.fit_name not in status_dict:
+                status_dict[run.fit_name] = 0
+            status_dict[run.fit_name] += 1
+            
+            if run.fit_name == "default":
+                default_count +=1
+            if "best" in run.review_status: 
+                bestfit_count +=1
+            if "acceptable" in run.review_status: 
+                acceptablefit_count +=1
+
+            curCancerType = run.cancerType
+            if curCancerType not in cancer_type_dict:
+                cancer_type_dict[curCancerType] = 0
+            cancer_type_dict[curCancerType] += 1
+            
+        
+            curOnkoCode = run.onkoCode
+            if curOnkoCode not in oncocode_dict:
+                oncocode_dict[curOnkoCode] = 0
+            oncocode_dict[curOnkoCode] += 1
+
+            cur_msi = run.msi
+            if cur_msi>=1.5:
+                msi_count +=1
+            msi_li.append(cur_msi)
+
+            if run.wgd:
+                wgd_count+=1
+            
+            purity_li.append(run.purity)
+
+        
+        
+        msi_median = statistics.median(msi_li)
+        purity_median = statistics.median(purity_li)
+        
+        date = datetime.now()
+        datestr = str(date.isoformat(sep = "_",timespec='minutes')).replace(":","-")
+        outstr = ""
+        with open("FacetsDataset_summary_{datest}.tsv".format(datest= datestr),'w') as outf:
+            outstr+= "FacetsDataset_summary_{datest}".format(datest= datestr) + '\n'
+            outstr+= "Number of Samples" + '\t' + str(self.numSamples) + '\n'
+            outstr+= "Number of files failed" + '\t' + str(self.num_file_failed )+ '\n'
+            outstr+= "Number of failed sample build" + '\t' + str(self.num_build_failed) + '\n'
+
+            
+            for key in status_dict:
+                outstr+= key+" count\t"+str(status_dict[key])+'\n'
+
+            outstr+= "Cancer Type Number"+"\t"+str(len(cancer_type_dict))+'\n'
+                
+            for key in cancer_type_dict:
+                outstr+= key+" count\t"+str(cancer_type_dict[key])+'\n'
+
+            outstr+= "Onco Code Number"+"\t"+str(len(oncocode_dict))+'\n'
+                
+            for key in oncocode_dict:
+                outstr+= key+" count\t"+str(oncocode_dict[key])+'\n'
+
+            outstr += "Best fit Count"+"\t"+str(bestfit_count)+'\n'
+            outstr += "Acceptable fit Count"+"\t"+str(acceptablefit_count)+'\n'
+            outstr += "Default fit Count"+"\t"+str(default_count)+'\n'
+            outstr += "MSI score median "+"\t"+str(msi_median)+'\n'
+            outstr += "MSI above 1.5"+"\t"+str(msi_count)+'\n'
+            outstr += "Purity median"+"\t"+str(purity_median)+'\n'
+            outstr += "WGD count"+"\t"+str(wgd_count)+'\n'
+            
+
+            outf.write(outstr)
+
+    #This function will create a histogram of input FacetsRun object
+    def createHistogram(self,variable,inbins=10):
+        """
+        This function outputs a histogram png using the variable requested from facetsrun
+        
+        It defaults to 10 automated bins for numerical variables but that can be changed. 
+        For strings like cancerType or boolean values like WGD it uses however many bins are needed.
+
+        Available variables are as follows:   'purity', 'clinicalPurity',  'ploidy', 'dipLogR', 'cval', 'fga', 'frac_loh', 'tmb' , 'msi'
+        'cancerType', 'oncoCode','wgd', 'review_status'
+
+        """
+        try:
+            #If variable is comprised of many int or float values
+            if variable in { 'purity', 'clinicalPurity',  'ploidy', 'dipLogR', 'cval', 'fga', 'frac_loh', 'tmb' , 'msi'}:
+                variableli = []
+                for run in self.runList:
+                    if getattr(run,variable) == 'NA' or type(getattr(run,variable)) == str:
+                        pass
+                    else:
+                        variableli.append(float(getattr(run,variable)))
+
+                # counts, bins = np.histogram(variableli)
+
+                date = datetime.now()
+                datestr = str(date.isoformat(sep = "_",timespec='minutes')).replace(":","-")
+
+                n, bins, patches = plt.hist(x=variableli, bins=inbins, color='#0504aa',
+                            alpha=0.7, rwidth=0.85, orientation="horizontal")
+                plt.ylabel('Value')
+                plt.xlabel('Frequency')
+
+                plt.title("Histogram of {var} in constructed FacetsDataset ({datetim})".format(var=variable,datetim = datestr ))
+                # plt.xticks(range(int(min(n)),int(max(n))+1))
+                plt.yticks(bins)
+                
+                plt.savefig('./histograms/FacetsDataset_histogram_{var}_{datetim}.png'.format(var=variable,datetim =datestr), bbox_inches="tight")
+                plt.clf()
+            #Variable is strings 
+            elif variable in {"cancerType", 'oncoCode','wgd', 'review_status'}:
+                count_dict = {}
+                for run in self.runList:
+                    if type(getattr(run,variable)) == bool:
+
+                        if str(getattr(run,variable)) not in count_dict:
+                            count_dict[str(getattr(run,variable))] = 0
+                        count_dict[str(getattr(run,variable))] += 1
+
+                    else:
+                        if getattr(run,variable) not in count_dict:
+                            count_dict[getattr(run,variable)] = 0
+                        count_dict[getattr(run,variable)] += 1
+
+
+                #Make histogram 
+                date = datetime.now()
+                datestr = str(date.isoformat(sep = "_",timespec='minutes')).replace(":","-")
+
+                plt.barh(list(count_dict.keys()), list(count_dict.values()), color='g')
+                plt.xlabel('Value')
+                plt.ylabel('Frequency')
+                plt.title("Histogram of {var} in constructed FacetsDataset ({datetim})".format(var=variable,datetim = datestr ))
+                plt.autoscale()
+                plt.savefig('./FacetsDataset_histogram_{var}_{datetim}.png'.format(var=variable,datetim =datestr ),bbox_inches="tight")
+                plt.clf()
+                
+            else:
+                print (bcolors.FAIL)
+                print ("\t\tError in FacetsDataset.createHistogram(). Enter an appropriate object from FacetsRun")
+                print (e)
+                print (bcolors.ENDC)
+                #error
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FacetsDataset.createHistogram(). Terminating execution.")
+            # print (e)
+            print (bcolors.ENDC)
+            # sys.exit()
+
+                
+            
+        
     #This function will calculate and write calculated purity data for each sample.  If use_base_cf is true, cf will be used
     #rather than cf.em.  
     def writePurityCFs(self, outfile_path, use_base_cf=False, use_long_id=True):
@@ -1208,6 +1414,7 @@ class FacetsDataset:
             total_samples_prepped = 0
             num_build_failed      = 0
             num_file_failed       = 0
+            
             print("\tApplying filtering and building FacetsDataset beginning with " + str(len(self.ref_facetsMeta.master_file_dict)) + " samples.")
 
             #Go through our master file dictionary and build facets sample objects.
@@ -1223,6 +1430,9 @@ class FacetsDataset:
                     curCancerType = self.ref_facetsMeta.cancer_type_map.get(key)
                     if curCancerType not in self.selectedCancerTypes:
                         continue
+                    
+                
+
 
                 #CancerTypeDetail Filter.
                 if self.filterCancerTypeDetail:
@@ -1244,6 +1454,7 @@ class FacetsDataset:
                     curOnkoCode = self.ref_facetsMeta.onkotree_code_map.get(key)
                     if curOnkoCode not in self.selectedOnkoCodes:
                         continue
+
 
                 #TMB Filter.
                 if self.filterTMB:
@@ -1408,6 +1619,8 @@ class FacetsDataset:
                     total_samples_prepped = total_samples_prepped + 1
 
             self.numSamples = len(self.runList)
+            self.num_file_failed  = num_file_failed
+            self.num_build_failed = num_build_failed
             print("\tFacetsDataset built with " + str(self.numSamples) + " samples.")
             print("\t\t" + str(num_file_failed) + " samples failed due to file formatting errors.")
             print("\t\t" + str(num_build_failed) + " samples failed during FacetsRun object construction.")
@@ -1972,7 +2185,8 @@ class FacetsRun:
 
     def __init__(self, id, patientId, fitDir, cancerType, cancerTypeDetail, 
                  purity, clinicalPurity, onkoCode, ploidy, dipLogR, cval, 
-                 wgd, fga, frac_loh, facets_qc, tmb, msi, purity_hisens):
+                 wgd, fga, frac_loh, facets_qc, tmb, msi, purity_hisens,
+                 review_status, fit_name, review_author ):
         self.segments         = []
         self.genes            = []
         self.id               = id
@@ -1993,6 +2207,9 @@ class FacetsRun:
         self.tmb              = tmb
         self.msi              = msi
         self.purity_hisens    = purity_hisens
+        self.review_status    = review_status
+        self.fit_name         = fit_name
+        self.review_author    = review_author
         self.alterations      = {} #A map of {chr_arm -> [alteration, percentAltered]}, where alteration is (LoH or Gain or Neutral) based on the segments for this sample.
         self.isHypoploidy     = False
         self.isGainHeavy      = False
@@ -2000,6 +2217,7 @@ class FacetsRun:
         self.cfLevel_values   = {} #A map of {cf_level -> cf_value}
         self.arm_cf_data      = {} #A map of {arm -> [cf, percent_arm_coverage]}
         self.max_arm_level    = -1 #The arm level that has the most members.
+        
 
 
     #Add a segment to the segment array of type FacetsSegment.
@@ -2888,7 +3106,7 @@ class FacetsRun:
             print (sample_dir_map)
             print (e)
             print (bcolors.ENDC)
-            sys.exit()
+            # sys.exit()
 
 
     ######################
@@ -3032,6 +3250,13 @@ class FacetsRun:
                 cur_patient_id         = facets_metadata.patient_id_map.get(short_id)
                 cur_tmb                = facets_metadata.cvr_tmb_score_map.get(short_id)
                 cur_msi                = facets_metadata.msi_score_map.get(short_id)
+
+                review_status          = cur_dir_map[9].split("#")  #reviewstatus#fit_name#reviewed_by
+                cur_review_status      = review_status[0]
+                fit_name               = review_status[1]
+                reviewed_by            = review_status[2]
+
+                
             else:
                 cur_cancer_type        = facets_metadata.cancer_type_map.get(sample_id)
                 cur_cancer_type_detail = facets_metadata.cancer_type_detail_map.get(sample_id)
@@ -3040,6 +3265,10 @@ class FacetsRun:
                 cur_patient_id         = facets_metadata.patient_id_map.get(sample_id)
                 cur_tmb                = facets_metadata.cvr_tmb_score_map.get(sample_id)
                 cur_msi                = facets_metadata.msi_score_map.get(sample_id)
+                review_status          = cur_dir_map[9].split("#")  #reviewstatus#fit_name#reviewed_by
+                cur_review_status      = review_status[0]
+                fit_name               = review_status[1]
+                reviewed_by            = review_status[2]
 
             #Build the FacetsRun object.
             cur_facets_sample = FacetsRun(sample_id,
@@ -3059,7 +3288,11 @@ class FacetsRun:
                                             facets_qc_out, 
                                             cur_tmb, 
                                             cur_msi,
-                                            FacetsMeta.hisens_vs_purity)
+                                            FacetsMeta.hisens_vs_purity,
+                                            cur_review_status,
+                                            fit_name,
+                                            reviewed_by
+                                            )
             
             #Now build in the segments from the CNCF file.
             segments = FacetsRun.parseCNCF(cur_dir_map[MetaDictMap.CNCF_FILE],cur_dir_map[MetaDictMap.ADJUSTED_SEG_FILE])
