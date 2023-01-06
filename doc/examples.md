@@ -126,7 +126,7 @@ if __name__ == '__main__':
 ```
 
 
-### Produce genomic annotation for Facets Samples that are missing genomic annotation files.
+#### Produce genomic annotation for Facets Samples that are missing genomic annotation files.
 
 At one point, it was found that some FACETS samples in the impact repository were missing genomic annotation.  The following code is an example of using FacetAPI to execute FacetsPreview::generate_genomic_annotation() on the affected samples through the Juno LSF cluster.
 
