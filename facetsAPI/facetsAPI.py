@@ -273,6 +273,8 @@ class MetaDictMap:
     NONSIGNED_MAF_FILE = 8
     UNADJUSTED_SEG_FILE = 9
     MANIFEST_FILE = 10
+    FIT_STATUS = 11
+    SAMPLE_BASE_DIR = 12
 
 ######################
 # FacetsMeta:    This class represents necessary metadata structures that hold information such as directory paths,
@@ -454,8 +456,7 @@ class FacetsMeta:
         print("|"+bcolors.OKBLUE+" \ \_\    \ \_\ \_\  \ \_____\  \ \_____\    \ \_\  \/\_____\ "+bcolors.OKCYAN+"    \ \_\ \_\  \ \_\    \ \_\ "+bcolors.ENDC+"|")
         print("|"+bcolors.OKBLUE+"  \/_/     \/_/\/_/   \/_____/   \/_____/     \/_/   \/_____/  "+bcolors.OKCYAN+"    \/_/\/_/   \/_/     \/_/ "+bcolors.ENDC+"|")
         print("~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~")
-    
-    
+
     ######################
     # parseClinicalSample:  This function will accept a clinical sample file and
     #                         scan each sample's corresponding facets directory.
@@ -550,6 +551,7 @@ class FacetsMeta:
 
                     cur_manifest_file  = cur_id_dirs[-1] + "/facets_review.manifest"
                     cur_facets_qc_file = cur_id_dirs[-1] + "/facets_qc.txt" 
+                    cur_base_dir       = cur_id_dirs[-1]
 
                     #If there is no manifest file, skip the sample.
                     if not os.path.exists(cur_manifest_file):
@@ -654,7 +656,7 @@ class FacetsMeta:
 
                         self.long_id_map[id]   = [id_with_normal]
 
-                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file, curr_fit_status]
+                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file, curr_fit_status, cur_base_dir]
 
                         #print(str([out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file]))
                         #break
@@ -727,7 +729,7 @@ class FacetsMeta:
                                 curr_fit_status   = row["review_status"] + "#" + row["fit_name"] + "#" + str(row["reviewed_by"])
 
                             cur_run_list.append(long_id)
-                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file, curr_fit_status]
+                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file, curr_fit_status, cur_sample_folder]
 
                             #print(str([out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file]))
                             #sys.exit()
@@ -843,17 +845,11 @@ class FacetsDataset:
             print (bcolors.ENDC)
             sys.exit()  
 
-    def writeDatasetSummary(self):
-        """
-        This function outputs a text file containing information that summarizes a facets dataset
-        This includes metrics like number of best/acceptable fits, number of failed samples that couldn't build, number of cancer types, etc
-        The output contains the date and time.  
-        """
-
-        
-        for sample in self.sampleList:
-            pass
-        
+    
+    #This function outputs a text file containing information that summarizes a facets dataset
+    #This includes metrics like number of best/acceptable fits, number of failed samples that couldn't build, number of cancer types, etc
+    #The output contains the date and time.  
+    def writeDatasetSummary(self):      
         status_dict         = {}
         cancer_type_dict    = {}
         oncocode_dict       = {}
@@ -865,9 +861,7 @@ class FacetsDataset:
         acceptablefit_count = 0
         default_count       = 0
 
-
         for run in self.runList:
-
             if run.review_status not in status_dict:
                 status_dict[run.review_status] = 0
             status_dict[run.review_status] += 1
@@ -888,7 +882,6 @@ class FacetsDataset:
                 cancer_type_dict[curCancerType] = 0
             cancer_type_dict[curCancerType] += 1
             
-        
             curOnkoCode = run.onkoCode
             if curOnkoCode not in oncocode_dict:
                 oncocode_dict[curOnkoCode] = 0
@@ -903,8 +896,6 @@ class FacetsDataset:
                 wgd_count+=1
             
             purity_li.append(run.purity)
-
-        
         
         msi_median = statistics.median(msi_li)
         purity_median = statistics.median(purity_li)
@@ -918,7 +909,6 @@ class FacetsDataset:
             outstr+= "Number of files failed" + '\t' + str(self.num_file_failed )+ '\n'
             outstr+= "Number of failed sample build" + '\t' + str(self.num_build_failed) + '\n'
 
-            
             for key in status_dict:
                 outstr+= key+" count\t"+str(status_dict[key])+'\n'
 
@@ -940,21 +930,18 @@ class FacetsDataset:
             outstr += "Purity median"+"\t"+str(purity_median)+'\n'
             outstr += "WGD count"+"\t"+str(wgd_count)+'\n'
             
-
             outf.write(outstr)
 
-    #This function will create a histogram of input FacetsRun object
+
+    ######################
+    # createHistogram:  This function outputs a histogram png using the variable requested from facetsrun
+    #                   It defaults to 10 automated bins for numerical variables but that can be changed. 
+    #                   For strings like cancerType or boolean values like WGD it uses however many bins are needed.
+    #                   Available variables are as follows:   'purity', 'clinicalPurity',  'ploidy', 'dipLogR', 'cval', 'fga', 'frac_loh', 'tmb' , 'msi'
+    #                   'cancerType', 'oncoCode','wgd', 'review_status'
+    ######################
     def createHistogram(self,variable,inbins=10):
-        """
-        This function outputs a histogram png using the variable requested from facetsrun
-        
-        It defaults to 10 automated bins for numerical variables but that can be changed. 
-        For strings like cancerType or boolean values like WGD it uses however many bins are needed.
 
-        Available variables are as follows:   'purity', 'clinicalPurity',  'ploidy', 'dipLogR', 'cval', 'fga', 'frac_loh', 'tmb' , 'msi'
-        'cancerType', 'oncoCode','wgd', 'review_status'
-
-        """
         try:
             #If variable is comprised of many int or float values
             if variable in { 'purity', 'clinicalPurity',  'ploidy', 'dipLogR', 'cval', 'fga', 'frac_loh', 'tmb' , 'msi'}:
@@ -981,6 +968,7 @@ class FacetsDataset:
                 
                 plt.savefig('./histograms/FacetsDataset_histogram_{var}_{datetim}.png'.format(var=variable,datetim =datestr), bbox_inches="tight")
                 plt.clf()
+
             #Variable is strings 
             elif variable in {"cancerType", 'oncoCode','wgd', 'review_status'}:
                 count_dict = {}
@@ -995,7 +983,6 @@ class FacetsDataset:
                         if getattr(run,variable) not in count_dict:
                             count_dict[getattr(run,variable)] = 0
                         count_dict[getattr(run,variable)] += 1
-
 
                 #Make histogram 
                 date = datetime.now()
@@ -1014,16 +1001,60 @@ class FacetsDataset:
                 print ("\t\tError in FacetsDataset.createHistogram(). Enter an appropriate object from FacetsRun")
                 print (e)
                 print (bcolors.ENDC)
-                #error
+
         except Exception as e:
             print (bcolors.FAIL)
             print ("\t\tError in FacetsDataset.createHistogram(). Terminating execution.")
-            # print (e)
+            print (e)
             print (bcolors.ENDC)
-            # sys.exit()
 
-                
+
+    ######################
+    # copyDatasetToFolder:  This function will create a copy of a the folders in the facets dataset object
+    #                       to a specified output location. Directory structure will be preserved, /all/P-12345/P-12345_T01...
+    #                       Note that this function will not overwrite existing files.
+    ######################     
+    def copyDatasetToFolder(self, output_folder):
+        try:
+            if output_folder == self.ref_facetsMeta.facets_repo_path:
+                print (bcolors.FAIL)
+                print ("\t\tError in FacetsDataset.copyDatasetToFolder(). Destination path cannot be the same as the source path.")
+                print (e)
+                print (bcolors.ENDC)
+                sys.exit()
             
+            target_base_dir = output_folder + "/all/"
+            #If the target directory doesnt exist, create it.
+            if not os.path.exists(output_folder):
+                os.system("mkdir " + output_folder)
+                os.system("chmod -R 775 " + output_folder)
+            #Make an /all/ directory to maintain structure.
+            if not os.path.exists(target_base_dir):
+                os.system("mkdir " + target_base_dir)
+                os.system("chmod -R 775 " + target_base_dir)
+
+            #Copy everything to the appropriate location.
+            for key in self.sampleList:
+                cur_sample = self.sampleList.get(key)
+                cur_run = cur_sample.runs[0] #A sample might have multiple runs, but we don't care here, just want the base directory.
+                run_base_dir = os.path.dirname(os.path.dirname(cur_run.fitDir)) #Get the long folder path (P-1234542-IM3-T01_P1234542-IM3-N01/)
+                run_short_parent_dir = os.path.dirname(run_base_dir) #Get the short folder (P-01234/)
+                short_dir_str = run_short_parent_dir.split("/")[-1]
+                long_dir_str = run_base_dir.split("/")[-1]
+                new_short_parent_dir = target_base_dir + short_dir_str
+                if not os.path.exists(new_short_parent_dir):
+                    os.system("mkdir " + new_short_parent_dir)
+                    os.system("chmod -R 775 " + new_short_parent_dir)
+                target_copy_path = new_short_parent_dir + "/" + long_dir_str
+                if not os.path.exists(target_copy_path):
+                    os.system("cp -R -n " + run_base_dir + " " + target_copy_path)
+
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FacetsDataset.copyDatasetToFolder(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+
         
     #This function will calculate and write calculated purity data for each sample.  If use_base_cf is true, cf will be used
     #rather than cf.em.  
@@ -1430,9 +1461,6 @@ class FacetsDataset:
                     curCancerType = self.ref_facetsMeta.cancer_type_map.get(key)
                     if curCancerType not in self.selectedCancerTypes:
                         continue
-                    
-                
-
 
                 #CancerTypeDetail Filter.
                 if self.filterCancerTypeDetail:
@@ -1454,7 +1482,6 @@ class FacetsDataset:
                     curOnkoCode = self.ref_facetsMeta.onkotree_code_map.get(key)
                     if curOnkoCode not in self.selectedOnkoCodes:
                         continue
-
 
                 #TMB Filter.
                 if self.filterTMB:
@@ -1480,6 +1507,7 @@ class FacetsDataset:
                 cur_ploidy  = 0
                 cur_dipLogR = 0
                 out_data    = []
+                
                 if self.filterPurity or self.filterPloidy or self.filterDipLogR or self.filterCval or self.filterWGD or self.filterWGD or self.filterFGA or self.filterFracLoH:
                     out_data    = FacetsRun.parseOut(cur_dir_map[0])
                     if out_data is False:
@@ -1614,7 +1642,6 @@ class FacetsDataset:
                             cur_sample = FacetsSample(cur_sample_id)
                             cur_sample.addRun(cur_run)
                             self.sampleList[cur_sample_id] = cur_sample
-
                     self.runList.append(cur_run)
                     total_samples_prepped = total_samples_prepped + 1
 
@@ -3219,7 +3246,7 @@ class FacetsRun:
             out_data               = FacetsRun.parseOut(cur_dir_map[MetaDictMap.OUT_FILE])
             sample_qc_data         = FacetsRun.parseSampleQC(cur_dir_map[MetaDictMap.QC_FILE], out_data[1])
             facets_qc_out          = FacetsRun.parseFacetsQC(cur_dir_map)
-  
+
             #If we were missing information in any of our files, we don't want to proceed with this sample.
             if facets_qc_out == -1:
                 if facets_metadata.run_verbose:
@@ -3250,13 +3277,10 @@ class FacetsRun:
                 cur_patient_id         = facets_metadata.patient_id_map.get(short_id)
                 cur_tmb                = facets_metadata.cvr_tmb_score_map.get(short_id)
                 cur_msi                = facets_metadata.msi_score_map.get(short_id)
-
-                review_status          = cur_dir_map[9].split("#")  #reviewstatus#fit_name#reviewed_by
+                review_status          = cur_dir_map[MetaDictMap.FIT_STATUS].split("#")  #reviewstatus#fit_name#reviewed_by
                 cur_review_status      = review_status[0]
                 fit_name               = review_status[1]
                 reviewed_by            = review_status[2]
-
-                
             else:
                 cur_cancer_type        = facets_metadata.cancer_type_map.get(sample_id)
                 cur_cancer_type_detail = facets_metadata.cancer_type_detail_map.get(sample_id)
@@ -3265,7 +3289,7 @@ class FacetsRun:
                 cur_patient_id         = facets_metadata.patient_id_map.get(sample_id)
                 cur_tmb                = facets_metadata.cvr_tmb_score_map.get(sample_id)
                 cur_msi                = facets_metadata.msi_score_map.get(sample_id)
-                review_status          = cur_dir_map[9].split("#")  #reviewstatus#fit_name#reviewed_by
+                review_status          = cur_dir_map[MetaDictMap.FIT_STATUS].split("#")  #reviewstatus#fit_name#reviewed_by
                 cur_review_status      = review_status[0]
                 fit_name               = review_status[1]
                 reviewed_by            = review_status[2]
@@ -3293,7 +3317,7 @@ class FacetsRun:
                                             fit_name,
                                             reviewed_by
                                             )
-            
+
             #Now build in the segments from the CNCF file.
             segments = FacetsRun.parseCNCF(cur_dir_map[MetaDictMap.CNCF_FILE],cur_dir_map[MetaDictMap.ADJUSTED_SEG_FILE])
             for i in range(len(segments)):
