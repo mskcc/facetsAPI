@@ -2756,7 +2756,7 @@ class FacetsRun:
                         cur_seg.percentArm = float(cur_seg.length) / float(cur_chrom_ranges[1])
                     elif lowPos >= centromere_pos and highPos >= centromere_pos:
                         cur_seg.arm = str(cur_seg.chrom) + "q"
-                        cur_seg.percentArm = float(cur_seg.length) / float(cur_chrom_ranges[3])
+                        cur_seg.percentArm = float(cur_seg.length) / (float(cur_chrom_ranges[3]) - float(cur_chrom_ranges[2]))
                     #If not, split the segment.
                     else:
                         segsToRemove.append(cur_seg)
@@ -2772,7 +2772,7 @@ class FacetsRun:
                         seg2_newEnd   = cur_seg.end
                         new_Seg2      = FacetsSegment(cur_seg.chrom,seg2_newStart,seg2_newEnd,cur_seg.cnlr_median,cur_seg.cf,cur_seg.cf_base,cur_seg.tcn,cur_seg.lcn,cur_seg.num_mark, cur_seg.nhet, cur_seg.mafR, cur_seg.segclust, cur_seg.cnlr_median_clust, cur_seg.mafR_clust, cur_seg.adj_mean)
                         new_Seg2.arm  = str(cur_seg.chrom) + "q"
-                        new_Seg2.percentArm = float(new_Seg2.length) / float(cur_chrom_ranges[3])
+                        new_Seg2.percentArm = float(new_Seg2.length) / (float(cur_chrom_ranges[3]) - float(cur_chrom_ranges[2]))
 
                         segsToAdd.append(new_Seg1)
                         segsToAdd.append(new_Seg2)

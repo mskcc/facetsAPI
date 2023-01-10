@@ -29,6 +29,9 @@ def correct_missing_annotations(useSingleRun, allowDefaults):
     fp_tools = FPTools(fp_config, cbio_maf, cbio_nonsigned_maf)
     fp_tools.loadModule("R/R-3.6.3")
 
+    #fp_tools.runGenerateGenomicAnnotations("P-0043377-T01-IM6", "P-0043377-T01-IM6_P-0043377-N01-IM6","/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/misc/facets/all/P-00433/P-0043377-T01-IM6_P-0043377-N01-IM6/")
+    #sys.exit()
+    
     #Sometimes you will get multiple fits, that will cause the job to queue multiple times.
     #Because facetspreview::generate_genomic_annotations will run at the sample base level on all fits
     #we don't want to queue multiple times for the same folder. So get unique paths before submitting.

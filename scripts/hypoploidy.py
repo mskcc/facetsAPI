@@ -13,9 +13,14 @@ if __name__ == '__main__':
     #Initialize FacetsMeta. This will build all relevant metadata we need going forward.
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
     prepared_metadata.setSingleRunPerSample(True,False)
+
+    prepared_metadata.selectSamplesFromFile("/juno/work/ccs/pricea2/pipelines/facetsAPI/scripts/test_hypo.txt")
+    
     prepared_metadata.buildFacetsMeta()
 
+
     hypo_dataset = FacetsDataset(prepared_metadata)
+
     filter_on_qc_fail       = True     # If this is True, facets_qc failed samples will be excluded from analysis.
     purity_filter_thresh    = 0.2      # This is the level of purity at which we disqualify samples from consideration.
     hypo_dataset.setPurityFilter(purity_filter_thresh)
