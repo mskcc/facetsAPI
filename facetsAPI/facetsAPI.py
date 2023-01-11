@@ -933,7 +933,7 @@ class FacetsDataset:
             outf.write(outstr)
 
 
-    ######################
+    ###################### 
     # createHistogram:  This function outputs a histogram png using the variable requested from facetsrun
     #                   It defaults to 10 automated bins for numerical variables but that can be changed. 
     #                   For strings like cancerType or boolean values like WGD it uses however many bins are needed.
