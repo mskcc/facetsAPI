@@ -3,6 +3,11 @@
 FacetsAPI requires the Pandas python library.  
 If you do not have it installed, see instructions [here](https://pandas.pydata.org/docs/getting_started/install.html).
 
+FacetsAPI also requires matplotlib. 
+
+If you do not have it installed, see instructions [here](https://matplotlib.org/stable/users/installing/index.html).
+
+
 ## Installation
 
 Facets API can be easilly installed using pip.
