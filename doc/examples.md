@@ -183,3 +183,5 @@ def correct_missing_annotations(useSingleRun, allowDefaults):
 if __name__ == '__main__':
     correct_missing_annotations(False, False)
 ```
+### Jupyter Notebook Implementation
+#### facetsAPI can also be used in Jupyter Notebook interactively. This could be useful if one were trying to create histograms and tune a facetsDataset quickly.  It also removes the current need of building a dataset and facetsMeta repeatedly in a script. Open facetsAPI_quickstart.ipynb in Jupyter notebook to get started.  The examples above can also be run in this environment. 

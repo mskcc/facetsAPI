@@ -53,9 +53,10 @@ The initialization function of a FacetsDataset class does not require any parame
   * This function will print a specific sample in this facets dataset. id is expected to be a string. 
 * writeDatasetSummary()
   * This function will output a text file containing information tat summarizes a facets dataset. This includes metrics like number of best/acceptable fits, number of failed samples that couldn't build, number of cancer types, etc.  The output's name contains the date/time
-* createHistogram(variable, inbins=10)
+* createHistogram(variable, inbins=10, interactive=False)
   * This function creates a histogram from the requested variable.  It defaults to 10 automated bins for numerical variables but that can be changed. For strings like cancerType or boolean values like WGD it uses however many bins are needed.
   * Available variables are as follows: purity, clinicalPurity, ploidy, dipLogR, cval, fga, frac_loh, tmb, msi, cancerType, oncoCode, wgd, and review_status. 
+  * Setting interactive to true allows the fucntion to be used inline in jupyter notebook.
 
 
 #### Examples
