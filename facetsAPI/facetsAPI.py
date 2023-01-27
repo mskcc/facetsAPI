@@ -940,7 +940,7 @@ class FacetsDataset:
     #                   Available variables are as follows:   'purity', 'clinicalPurity',  'ploidy', 'dipLogR', 'cval', 'fga', 'frac_loh', 'tmb' , 'msi'
     #                   'cancerType', 'oncoCode','wgd', 'review_status'
     ######################
-    def createHistogram(self,variable,inbins=10):
+    def createHistogram(self,variable,inbins=10,interactive=False):
 
         try:
             #If variable is comprised of many int or float values
@@ -965,9 +965,11 @@ class FacetsDataset:
                 plt.title("Histogram of {var} in constructed FacetsDataset ({datetim})".format(var=variable,datetim = datestr ))
                 # plt.xticks(range(int(min(n)),int(max(n))+1))
                 plt.yticks(bins)
-                
-                plt.savefig('./histograms/FacetsDataset_histogram_{var}_{datetim}.png'.format(var=variable,datetim =datestr), bbox_inches="tight")
-                plt.clf()
+                if interactive:
+                    pass
+                else:
+                    plt.savefig('./histograms/FacetsDataset_histogram_{var}_{datetim}.png'.format(var=variable,datetim =datestr), bbox_inches="tight")
+                    plt.clf()
 
             #Variable is strings 
             elif variable in {"cancerType", 'oncoCode','wgd', 'review_status'}:
@@ -993,8 +995,11 @@ class FacetsDataset:
                 plt.ylabel('Frequency')
                 plt.title("Histogram of {var} in constructed FacetsDataset ({datetim})".format(var=variable,datetim = datestr ))
                 plt.autoscale()
-                plt.savefig('./FacetsDataset_histogram_{var}_{datetim}.png'.format(var=variable,datetim =datestr ),bbox_inches="tight")
-                plt.clf()
+                if interactive:
+                    pass
+                else:
+                    plt.savefig('./FacetsDataset_histogram_{var}_{datetim}.png'.format(var=variable,datetim =datestr ),bbox_inches="tight")
+                    plt.clf()
                 
             else:
                 print (bcolors.FAIL)
