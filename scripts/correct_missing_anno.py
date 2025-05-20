@@ -11,19 +11,23 @@ from facetsAPI import *
 #If a maf is missing anywhere, then the maf generation and facetsPreview::generate_genomic_annotations() function
 #will be run for the sample.
 def correct_missing_annotations(useSingleRun, allowDefaults):
-    clinical_sample_file  = ""#"/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"
+    clinical_sample_file  = ""#"/work/ccs/shared/resources/impact_heme/cbio_mutations/data_clinical_sample.oncokb.txt"
     #facets_dir            = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/run_11-14-22/facets/fix_alt/all/"
     facets_dir            = "/work/ccs/shared/resources/impact/facets/all/"
 
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
     prepared_metadata.setSingleRunPerSample(useSingleRun,allowDefaults)
     
-    prepared_metadata.selectSamplesFromFile("/juno/work/ccs/pricea2/pipelines/facetsAPI/tests/test_samples.txt")
+    #prepared_metadata.selectSamplesFromFile("/juno/work/ccs/pricea2/pipelines/facetsAPI/scripts/test_ih_anno.txt")
 
     prepared_metadata.buildFacetsMeta()
+    test_dataset = FacetsDataset(prepared_metadata)
+
+    print("Got here")
+    sys.exit()
 
     fp_config = "/juno/work/ccs/bandlamc/git/ccs-cron/impact_facets/config_facets_preview.json"
-    cbio_maf = "/work/ccs/shared/resources/impact/cbio_mutations/data_mutations_extended.oncokb.vep.maf"
+    cbio_maf = "/work/ccs/shared/resources/impact_heme/cbio_mutations/data_mutations_extended.oncokb.vep.maf"
     cbio_nonsigned_maf = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/run_11-14-22/cbio_mutations/data_mutations_nonsignedout.vep.maf"
     
     fp_tools = FPTools(fp_config, cbio_maf, cbio_nonsigned_maf)

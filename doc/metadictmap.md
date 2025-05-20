@@ -2,7 +2,7 @@
 
 This class is a helper class to keep track of the types and order of files in a [FacetsMeta](facetsmeta.md) master_file_dict type object.  
 As the master_file_dict keeps track of a large number of files for each sample, it is complicated to reference these values by index.  
-When calling master_file_dict, instead of numbered indeces, use MetaDictMap.FILE_NAME.
+When calling master_file_dict, instead of numbered indices, use MetaDictMap.FILE_NAME.
 
 ```
 OUT_FILE = 0

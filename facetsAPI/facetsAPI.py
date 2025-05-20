@@ -7,10 +7,13 @@ import glob
 import pandas as pd
 import numpy as np
 import pickle
-
+#import rpy2.robjects as robjects
+#from rpy2.robjects import pandas2ri
 import statistics
-from datetime import datetime,time
+from datetime import datetime
+from datetime import date
 import matplotlib.pyplot as plt
+import traceback
 
 
 
@@ -52,6 +55,21 @@ class ExtTools:
             print (e)
             print (bcolors.ENDC)
             sys.exit()
+
+    #This function will run facets on a sample.
+    def runFacets(self,):
+
+ # run_facets_cmd = paste('bsub -J "{job_id}" -We 1:59 -R "rusage[mem=16]" {wait_for_jobs} ',
+ #                       '-o {log_dir}/{job_id}.log -e {log_dir}/{job_id}.err  ',
+ #                       '/opt/common/CentOS_7-dev/bin/Rscript /juno/work/ccs/shared/software/R_libs/facetsSuite/2.0.6/run-facets-wrapper.R ',
+ #                       '--facets-lib-path /home/pricea2/R/x86_64-pc-linux-gnu-library/3.5/ ', 
+ #                       '--counts-file {counts_file} ',
+ #                       '--sample-id {tag} ',
+ #                       '--snp-window-size 250 --normal-depth 35 ',
+ #                       '--min-nhet 15 --purity-min-nhet 15 --seed 100 ',
+ #                       '--cval 50 --purity-cval 100 --legacy-output T ',
+ #                       '--genome hg19 --directory {output_dir} ')
+        pass
 
     #This function will make a merged file for any file type in the MetaDictMap with a shared header.
     #fileType should be a MetaDictMap.FILETYPE. 
@@ -158,6 +176,7 @@ class ExtTools:
             #Submit ascets run to the queue.
             ascets_cmd = "bsub -J " + out_prefix + " -o " + out_log_file + " -e " + err_log_file + " -We 1:59 -n 2 bash -c \"Rscript " + run_ascets_script + " -i " + merged_seg_tmp_file + " -c " + arm_coords_file + " -m " + str(min_arm_breadth) + " -k " + keep_noise_short + " -a " + str(arm_alt_frac_thresh) + " -o " + out_prefix + " -p " + output_dir + "\""
             print("\t\t\tRunning ascets...")
+            print(ascets_cmd)
             os.system(ascets_cmd)
             
         except Exception as e:
@@ -275,6 +294,7 @@ class MetaDictMap:
     MANIFEST_FILE = 10
     FIT_STATUS = 11
     SAMPLE_BASE_DIR = 12
+    RDATA_FILE = 13
 
 ######################
 # FacetsMeta:    This class represents necessary metadata structures that hold information such as directory paths,
@@ -304,6 +324,70 @@ class FacetsMeta:
     glioma              = ["ASTR","ODG","AODG","GBM","HGGNOS","AASTR","GB","DIFG"]
     headNeck_carcinoma  = ["HNSC","OPHSC","HPHSC","OCSC","HNSCUP","LXSC","HNNE","SNSC","ODGC"]
     germCell_tumor      = ["MGCT","SEM","VMT","BMT","OYST","GCTSTM","NSGCT","EMBCA","OGCT","OMGCT","TT","TYST","VDYS","ODYS","OIMT","VYST","VMGCT","BMGCT","BIMT","VIMT","BYST","OMT","GCT"]
+
+    CN_CALL_TABLE = {
+        # No genome doubling (wgd=False)
+        (False, 0, 0):         'HOMDEL',
+        (False, 0, None):      'HOMDEL',
+        (False, 1, 1):         'HETLOSS',
+        (False, 1, None):      'HETLOSS',
+        (False, 2, 0):         'CNLOH',
+        (False, 2, None):      None,  # DIPLOID or CNLOH ambiguous
+        (False, 3, 0):         'CNLOH & GAIN',
+        (False, 3, None):      'GAIN',
+        (False, 4, 0):         'CNLOH & GAIN',
+        (False, 4, None):      'GAIN',
+        (False, 5, 0):         'AMP (LOH)',
+        (False, 5, None):      'AMP',
+        (False, 6, 0):         'AMP (LOH)',
+        (False, 6, None):      'AMP',
+        (False, 2, 1):         'DIPLOID',
+        (False, 3, 2):         'GAIN',
+        (False, 4, 3):         'GAIN',
+        (False, 5, 4):         'AMP',
+        (False, 6, 5):         'AMP',
+        (False, 7, 6):         'AMP',
+        (False, 4, 2):         'TETRAPLOID',
+        (False, 5, 3):         'AMP',
+        (False, 6, 4):         'AMP',
+        (False, 7, 5):         'AMP',
+        (False, 8, 6):         'AMP',
+        (False, 6, 3):         'AMP (BALANCED)',
+        (False, 7, 4):         'AMP',
+        (False, 8, 5):         'AMP',
+        (False, 9, 6):         'AMP',
+
+        # With genome doubling (wgd=True)
+        (True,  0, 0):         'HOMDEL',
+        (True,  0, None):      'HOMDEL',
+        (True,  1, 1):         'LOSS BEFORE & AFTER',
+        (True,  1, None):      'LOSS BEFORE & AFTER',
+        (True,  2, 2):         'LOSS BEFORE',
+        (True,  2, None):      'LOSS BEFORE or DOUBLE LOSS AFTER',
+        (True,  3, 3):         'CNLOH BEFORE & LOSS',
+        (True,  3, None):      'LOSS',
+        (True,  4, 4):         'CNLOH BEFORE',
+        (True,  4, None):      'TETRAPLOID or CNLOH BEFORE',
+        (True,  5, 5):         'CNLOH BEFORE & GAIN',
+        (True,  5, None):      'GAIN',
+        (True,  6, 6):         'AMP (LOH)',
+        (True,  6, None):      'AMP',
+        (True,  2, 1):         'DOUBLE LOSS AFTER',
+        (True,  3, 2):         'LOSS AFTER',
+        (True,  4, 3):         'CNLOH AFTER',
+        (True,  5, 4):         'LOSS & GAIN',
+        (True,  6, 5):         'AMP',
+        (True,  7, 6):         'AMP',
+        (True,  4, 2):         'TETRAPLOID',
+        (True,  5, 3):         'GAIN',
+        (True,  6, 4):         'AMP',
+        (True,  7, 5):         'AMP',
+        (True,  8, 6):         'AMP',
+        (True,  6, 3):         'AMP (BALANCED)',
+        (True,  7, 4):         'AMP',
+        (True,  8, 5):         'AMP',
+        (True,  9, 6):         'AMP',
+    }
 
     # Mapping of chromosome arms based on position in hg19. 
     # Format is chromosome: [p_start, p_end, q_start, q_end]
@@ -363,6 +447,35 @@ class FacetsMeta:
         self.long_id_map            = {} # A map of sample ids to their corresponding long_ids.  id -> [long_id1, long_id2...]
         self.samples_from_file      = [] # A list of samples from a file that should be selected for this object.
         self.fit_map                = {} # A map of id -> best/acceptable/default fit.
+
+    @staticmethod
+    def getArm(chrom, start, end):
+            """
+            Given a chromosome and a genomic interval [start, end],
+            return the string '<chrom><arm>' where arm is 'p', 'q', or 'pq'
+            (if the interval spans the centromere).
+            """
+            # normalize chromosome key for lookup in chr_arms
+            try:
+                key = int(chrom)
+            except (ValueError, TypeError):
+                key = chrom  # e.g. 'X' or 'Y'
+            if key not in FacetsMeta.chr_arms:
+                raise ValueError(f"getArm: unknown chromosome '{chrom}'")
+
+            p_start, p_end, q_start, q_end = FacetsMeta.chr_arms[key]
+
+            # interval entirely in p
+            if end <= p_end:
+                arm = "p"
+            # entirely in q
+            elif start >= q_start:
+                arm = "q"
+            # spans centromere
+            else:
+                arm = "pq"
+
+            return f"{chrom}{arm}"
 
     def setVerbose(self, doVerbose):
         try:
@@ -456,7 +569,7 @@ class FacetsMeta:
         print("|"+bcolors.OKBLUE+" \ \_\    \ \_\ \_\  \ \_____\  \ \_____\    \ \_\  \/\_____\ "+bcolors.OKCYAN+"    \ \_\ \_\  \ \_\    \ \_\ "+bcolors.ENDC+"|")
         print("|"+bcolors.OKBLUE+"  \/_/     \/_/\/_/   \/_____/   \/_____/     \/_/   \/_____/  "+bcolors.OKCYAN+"    \/_/\/_/   \/_/     \/_/ "+bcolors.ENDC+"|")
         print("~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~")
-
+        
     ######################
     # parseClinicalSample:  This function will accept a clinical sample file and
     #                         scan each sample's corresponding facets directory.
@@ -493,6 +606,7 @@ class FacetsMeta:
                     if os.path.isdir(startdir+item):
                         for samplefolder in os.listdir(startdir+item):
                             target_ids.append(samplefolder)
+
             else:
                 clinical_df = pd.read_csv(self.clinical_sample_file, sep="\t", low_memory=False)
 
@@ -622,11 +736,13 @@ class FacetsMeta:
                             cur_cncf     = glob.glob(selected_fit_dir + "/*_purity.cncf.txt")
                             cur_adjseq   = glob.glob(selected_fit_dir + "/*_purity_diplogR.adjusted.seg")
                             cur_unadjseq = glob.glob(selected_fit_dir + "/*_purity_diplogR.unadjusted.seg")
+                            cur_rdata    = glob.glob(selected_fit_dir + "/*_purity.Rdata") 
                         elif self.hisens_vs_purity == "hisens":
                             cur_out      = glob.glob(selected_fit_dir + "/*_hisens.out")
                             cur_cncf     = glob.glob(selected_fit_dir + "/*_hisens.cncf.txt")
                             cur_adjseq   = glob.glob(selected_fit_dir + "/*_hisens_diplogR.adjusted.seg")
                             cur_unadjseq = glob.glob(selected_fit_dir + "/*_hisens_diplogR.unadjusted.seg")
+                            cur_rdata    = glob.glob(selected_fit_dir + "/*_hisens.Rdata") 
                         else:
                             print("Error: hisens_vs_purity value should be 'hisens' or 'purity'.")
                             sys.exit()
@@ -653,13 +769,15 @@ class FacetsMeta:
                             gene_level_file = cur_gene_level[0]
                             adjseg_file     = cur_adjseq[0]
                             unadjseg_file   = cur_unadjseq[0]
+                            rdata_file      = cur_rdata[0]
 
                         self.long_id_map[id]   = [id_with_normal]
 
-                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file, curr_fit_status, cur_base_dir]
+                        self.master_file_dict[id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file, curr_fit_status, cur_base_dir, rdata_file]
 
                         #print(str([out_file, cncf_file, qc_file, cur_facets_qc_file, selected_fit_dir, gene_level_file, adjseg_file]))
-                        #break
+                        #if num_default_fits >= 100:
+                        #    break
                     #If we want to read in all fits for each sample, we need to iterate the manifest and build each one out.
                     else:
                         cur_run_list = []
@@ -683,6 +801,9 @@ class FacetsMeta:
 
                             cur_fit_folder = cur_sample_folder + row['fit_name'] + "/"
 
+                            print(row['fit_name'])
+                            print(cur_fit_folder)
+
                             if row['fit_name'] == "reviewed_best_fit":
                                 self.fit_map[id] = ["Best", cur_fit_folder]
                             if row['fit_name'] == "reviewed_acceptable_fit":
@@ -695,11 +816,13 @@ class FacetsMeta:
                                 cur_cncf   = glob.glob(cur_fit_folder + "*_purity.cncf.txt")
                                 cur_adjseq = glob.glob(cur_fit_folder + "/*_purity_diplogR.adjusted.seg")
                                 cur_unadjseq = glob.glob(cur_fit_folder + "/*_purity_diplogR.unadjusted.seg")
+                                cur_rdata    = glob.glob(cur_fit_folder + "/*_purity.Rdata") 
                             elif self.hisens_vs_purity == "hisens":
                                 cur_out    = glob.glob(cur_fit_folder + "*_hisens.out")
                                 cur_cncf   = glob.glob(cur_fit_folder + "*_hisens.cncf.txt")
                                 cur_adjseq = glob.glob(cur_fit_folder + "/*_hisens_diplogR.adjusted.seg")
                                 cur_unadjseq = glob.glob(cur_fit_folder + "/*_hisens_diplogR.unadjusted.seg")
+                                cur_rdata    = glob.glob(cur_fit_folder + "/*_hisens.Rdata") 
                             else:
                                 print("Error: hisens_vs_purity value should be 'hisens' or 'purity'.")
                                 sys.exit()
@@ -718,6 +841,18 @@ class FacetsMeta:
                             #If critical files are missing, skip the sample.
                             if not cur_out or not cur_cncf or not cur_qc or not cur_gene_level or not cur_adjseq or not cur_unadjseq:
                                 num_missing = num_missing + 1
+                                if not cur_out:
+                                    print("Missing out")
+                                if not cur_cncf:
+                                    print("Missing cncf")
+                                if not cur_qc:
+                                    print("Missing qc" )
+                                if not cur_gene_level:
+                                    print("Missing gene")
+                                if not cur_adjseq:
+                                    print("Missing adj" )
+                                if not cur_unadjseq:
+                                    print("Missing unadj")
                                 continue
                             else:
                                 out_file        = cur_out[0]
@@ -726,10 +861,11 @@ class FacetsMeta:
                                 gene_level_file = cur_gene_level[0]
                                 adjseg_file     = cur_adjseq[0]
                                 unadjseg_file   = cur_unadjseq[0]
-                                curr_fit_status   = row["review_status"] + "#" + row["fit_name"] + "#" + str(row["reviewed_by"])
+                                cur_fit_status  = row["review_status"] + "#" + row["fit_name"] + "#" + str(row["reviewed_by"])
+                                rdata_file      = cur_rdata[0] 
 
                             cur_run_list.append(long_id)
-                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file, curr_fit_status, cur_sample_folder]
+                            self.master_file_dict[long_id] = [out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file, cur_ccf, cur_nonsignedout, unadjseg_file, cur_manifest_file, cur_fit_status, cur_sample_folder, rdata_file]
 
                             #print(str([out_file, cncf_file, qc_file, cur_facets_qc_file, cur_fit_folder, gene_level_file, adjseg_file]))
                             #sys.exit()
@@ -751,10 +887,12 @@ class FacetsMeta:
             print("\t\tTotal samples extracted: " + str(len(self.master_file_dict)))
 
         except Exception as e:
-            print (bcolors.FAIL)
-            print ("\t\tError processing clinical data (492). Terminating execution.")
-            print (e)
-            print (bcolors.ENDC)
+            print(bcolors.FAIL)
+            print("\t\tError processing clinical data (492). Terminating execution.")
+            print(e)
+            print("Detailed traceback information:")
+            print(traceback.format_exc())
+            print(bcolors.ENDC)
             sys.exit()
 
 
@@ -822,12 +960,30 @@ class FacetsDataset:
 
                     outfile.write(str(cur_run.id) + "\t")
                     outfile.write(str(cur_run.fitDir) + "\t")
-                    outfile.write(str(cur_fit_item[0]) + "\t")
-                    outfile.write(str(cur_run.cancerType) + "\t")
-                    outfile.write(str(cur_run.cancerTypeDetail) + "\t")
-                    outfile.write(str(cur_run.purity) + "\t")
-                    outfile.write(str(cur_run.clinicalPurity) + "\t")
-                    outfile.write(str(cur_run.onkoCode) + "\t")
+                    if cur_fit_item is None:
+                        outfile.write("NA" + "\t")
+                    else:
+                        outfile.write(str(cur_fit_item[0]) + "\t")
+                    if cur_run.cancerType is None:
+                        outfile.write("NA" + "\t")
+                    else:
+                        outfile.write(str(cur_run.cancerType) + "\t")
+                    if cur_run.cancerTypeDetail is None:
+                        outfile.write("NA" + "\t")
+                    else:
+                        outfile.write(str(cur_run.cancerTypeDetail) + "\t")
+                    if cur_run.purity is None:
+                        outfile.write("NA" + "\t")
+                    else:
+                        outfile.write(str(cur_run.purity) + "\t")
+                    if cur_run.clinicalPurity is None:
+                        outfile.write("NA" + "\t")
+                    else:
+                        outfile.write(str(cur_run.clinicalPurity) + "\t")
+                    if cur_run.onkoCode is None:
+                        outfile.write("NA" + "\t")
+                    else:
+                        outfile.write(str(cur_run.onkoCode) + "\t")
                     outfile.write(str(cur_run.ploidy) + "\t")
                     outfile.write(str(cur_run.dipLogR) + "\t")
                     outfile.write(str(cur_run.cval) + "\t")
@@ -835,8 +991,14 @@ class FacetsDataset:
                     outfile.write(str(cur_run.fga) + "\t")
                     outfile.write(str(cur_run.frac_loh) + "\t")
                     outfile.write(str(cur_run.facets_qc) + "\t")
-                    outfile.write(str(cur_run.tmb) + "\t")
-                    outfile.write(str(cur_run.msi) + "\t")
+                    if cur_run.tmb is None:
+                        outfile.write("NA" + "\t")
+                    else:
+                        outfile.write(str(cur_run.tmb) + "\t")
+                    if cur_run.msi is None:
+                        outfile.write("NA" + "\t")
+                    else:
+                        outfile.write(str(cur_run.msi) + "\t")
                     outfile.write("\n")
         except Exception as e:
             print (bcolors.FAIL)
@@ -845,7 +1007,28 @@ class FacetsDataset:
             print (bcolors.ENDC)
             sys.exit()  
 
-    
+    #This function will make backup files of existing manifests for every sample in the provided FacetsMeta object.
+    def backupMafs(self, ref_meta):
+        try:
+            if not isinstance(ref_meta, FacetsMeta):
+                print (bcolors.FAIL)
+                print ("\t\tError in FacetsDataset.backupMafs(). ref_meta must be of type FacetsMeta.")
+                print (bcolors.ENDC)
+                sys.exit()
+            print("Backing up ccf.maf files.")
+            for item in ref_meta.master_file_dict:
+                curSample   = ref_meta.master_file_dict.get(item)
+                curManifest = curSample[MetaDictMap.CCF_MAF_FILE]
+                bakManifest = curManifest + "." + str(date.today()) + ".bak"
+                backup_cmd  = "cp " + curManifest + " " + bakManifest
+                os.system(backup_cmd)
+        except Exception as e:
+            print (bcolors.FAIL)
+            print ("\t\tError in FacetsDataset.backupMafs(). Terminating execution.")
+            print (e)
+            print (bcolors.ENDC)
+            sys.exit()
+
     #This function outputs a text file containing information that summarizes a facets dataset
     #This includes metrics like number of best/acceptable fits, number of failed samples that couldn't build, number of cancer types, etc
     #The output contains the date and time.  
@@ -877,20 +1060,23 @@ class FacetsDataset:
             if "acceptable" in run.review_status: 
                 acceptablefit_count +=1
 
-            curCancerType = run.cancerType
-            if curCancerType not in cancer_type_dict:
-                cancer_type_dict[curCancerType] = 0
-            cancer_type_dict[curCancerType] += 1
+            if run.cancerType is not None:
+                curCancerType = run.cancerType
+                if curCancerType not in cancer_type_dict:
+                    cancer_type_dict[curCancerType] = 0
+                cancer_type_dict[curCancerType] += 1
             
-            curOnkoCode = run.onkoCode
-            if curOnkoCode not in oncocode_dict:
-                oncocode_dict[curOnkoCode] = 0
-            oncocode_dict[curOnkoCode] += 1
+            if run.onkoCode is not None:
+                curOnkoCode = run.onkoCode
+                if curOnkoCode not in oncocode_dict:
+                    oncocode_dict[curOnkoCode] = 0
+                oncocode_dict[curOnkoCode] += 1
 
-            cur_msi = run.msi
-            if cur_msi>=1.5:
-                msi_count +=1
-            msi_li.append(cur_msi)
+            if run.msi is not None:
+                cur_msi = run.msi
+                if cur_msi>=1.5:
+                    msi_count +=1
+                msi_li.append(cur_msi)
 
             if run.wgd:
                 wgd_count+=1
@@ -966,7 +1152,7 @@ class FacetsDataset:
                 # plt.xticks(range(int(min(n)),int(max(n))+1))
                 plt.yticks(bins)
                 
-                plt.savefig('./histograms/FacetsDataset_histogram_{var}_{datetim}.png'.format(var=variable,datetim =datestr), bbox_inches="tight")
+                plt.savefig('./FacetsDataset_histogram_{var}_{datetim}.png'.format(var=variable,datetim =datestr), bbox_inches="tight")
                 plt.clf()
 
             #Variable is strings 
@@ -1423,13 +1609,13 @@ class FacetsDataset:
 
     #This function will print a specific sample in this facets dataset.
     def printFacetsSampleById(self, id):
-        if id not in self.sampleList:
-            print (bcolors.WARNING)
-            print ("\t\Warning in FacetsDataset.printFacetsSampleById(). ID not found: " + str(id))
-            print (e)
-            print (bcolors.ENDC)
+        try:
+            target_sample = self.sampleList[id]
+        except KeyError as e:
+            print(bcolors.WARNING)
+            print(f"\tWarning in FacetsDataset.printFacetsSampleById(): {e}")
+            print(bcolors.ENDC)
         else:
-            target_sample = self.sampleList.get(id)
             target_sample.printSample()
 
 
@@ -2007,8 +2193,9 @@ class FacetsDataset:
 # FacetsGene:    This class represents a single facets gene as represented in the gene_level.txt file.
 ######################
 class FacetsGene:
-    def __init__(self, gene, gene_start, gene_end, seg_start, seg_end, seg_length, cf, tcn, lcn, cn_state, filter, tsg, seg, median_cnlr_seg, segclust, mcn, genes_on_seg, gene_snps, gene_het_snps, spans_segs):
+    def __init__(self, gene, chrom, gene_start, gene_end, seg_start, seg_end, seg_length, cf, tcn, lcn, cn_state, filter, tsg, seg, median_cnlr_seg, segclust, mcn, genes_on_seg, gene_snps, gene_het_snps, spans_segs):
         self.gene            = gene
+        self.chrom           = chrom
         self.gene_start      = gene_start
         self.gene_end        = gene_end
         self.seg_start       = seg_start
@@ -2246,6 +2433,17 @@ class FacetsRun:
         self.max_arm_level    = -1 #The arm level that has the most members.
         
 
+    #Get CN_call value for any given tcn/lcn.
+    def get_cn_call(self, tcn, lcn):
+            """
+            Return the copy-number call string based on this run's WGD status,
+            total copy number (tcn) and lesser copy number (lcn).
+            """
+            # normalize NA lcn to None
+            key = (bool(self.wgd), tcn, lcn if lcn is not None else None)
+            # try exact match
+            call = FacetsMeta.CN_CALL_TABLE.get(key)
+            return call
 
     #Add a segment to the segment array of type FacetsSegment.
     def addSegment(self, seg):
@@ -3034,6 +3232,19 @@ class FacetsRun:
             print (bcolors.ENDC)
             sys.exit()
 
+    ######################
+    # getSNPs:  This function accepts a path to a .Rdata file and returns SNP data (out$jointseg) 
+    #           as a rpy2 table.
+    ######################
+    #@staticmethod
+    #def getSNPs(rdata_file):
+    #    try:
+    #        robjects.r['load'](rdata_file)
+    #        r_data = robjects.r['out']
+
+            # Convert R object to pandas DataFrame
+    #        pandas2ri.activate()
+    #        df = pandas2ri.ri2py(r_data.rx2('jointseg'))
 
 
     ######################
@@ -3048,7 +3259,7 @@ class FacetsRun:
             gene_level_df       = pd.read_csv(gene_level_file, sep="\t", low_memory=False)
             cur_gene_level_data = []
             for index in gene_level_df.index:
-                cur_gene_level_data.append([gene_level_df['gene'][index], gene_level_df['gene_start'][index], gene_level_df
+                cur_gene_level_data.append([gene_level_df['gene'][index], gene_level_df['chrom'][index], gene_level_df['gene_start'][index], gene_level_df
                                             ['gene_end'][index], gene_level_df['seg_start'][index], gene_level_df['seg_end'][index], 
                                             gene_level_df['seg_length'][index], gene_level_df['cf.em'][index], gene_level_df['tcn.em'][index], 
                                             gene_level_df['lcn.em'][index], gene_level_df['cn_state'][index], gene_level_df['filter'][index],
@@ -3349,6 +3560,7 @@ class FacetsRun:
                                         curGene[17],
                                         curGene[18],
                                         curGene[19],
+                                        curGene[20]
                                         )
 
                 cur_facets_sample.addGene(geneToAdd)
