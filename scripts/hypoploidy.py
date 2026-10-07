@@ -1,8 +1,8 @@
 import sys
 import os
 
-#change this to wherever the facetsAPI is stored
-sys.path.insert(1, '/juno/work/ccs/pricea2/pipelines/facetsAPI')
+# facetsAPI must be importable: `pip install -e /path/to/facetsAPI` (editable) or add the repository
+# root to PYTHONPATH. (Earlier versions hardcoded a cluster path here.)
 
 from facetsAPI import *
 
@@ -14,7 +14,7 @@ if __name__ == '__main__':
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
     prepared_metadata.setSingleRunPerSample(True,True)
 
-    #prepared_metadata.selectSamplesFromFile("/juno/work/ccs/pricea2/pipelines/facetsAPI/scripts/test_hypo.txt")
+    #prepared_metadata.selectSamplesFromFile("/path/to/facetsAPI/scripts/test_hypo.txt")
     
     prepared_metadata.buildFacetsMeta()
 

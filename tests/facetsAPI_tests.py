@@ -1,9 +1,8 @@
 import sys
 import os
 
-#change this to wherever the facetsAPI is stored
-sys.path.insert(1, '/juno/work/ccs/pricea2/pipelines/facetsAPI')
-# sys.path.insert(1, '/juno/work/ccs/orgeraj/facetsAPI')
+# facetsAPI must be importable: `pip install -e /path/to/facetsAPI` (editable) or add the repository
+# root to PYTHONPATH. (Earlier versions hardcoded a cluster path here.)
 
 from facetsAPI import *
 
@@ -53,7 +52,7 @@ def test_facetsMeta(useSingleRun, allowDefaults):
     #Initialize FacetsMeta. This will build all relevant metadata we need going forward.
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
     prepared_metadata.setSingleRunPerSample(useSingleRun,allowDefaults)
-    prepared_metadata.selectSamplesFromFile("/juno/work/ccs/pricea2/pipelines/facetsAPI/tests/test_samples.txt")
+    prepared_metadata.selectSamplesFromFile("/path/to/facetsAPI/tests/test_samples.txt")
     prepared_metadata.buildFacetsMeta()
     test_dataset = FacetsDataset(prepared_metadata)
     #test_dataset.setCancerTypeFilter(["Lung"])
@@ -83,12 +82,13 @@ def test_tools(useSingleRun, allowDefaults):
     prepared_metadata.setSingleRunPerSample(useSingleRun,allowDefaults)
     prepared_metadata.buildFacetsMeta()
 
-    fp_config = "/juno/work/ccs/bandlamc/git/ccs-cron/impact_facets/config_facets_preview.json"
+    fp_config = "/path/to/config_facets_preview.json"
     cbio_maf = "/work/ccs/shared/resources/impact/cbio_mutations/data_mutations_extended.oncokb.vep.maf"
     cbio_nonsigned_maf = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/run_11-14-22/cbio_mutations/data_mutations_nonsignedout.vep.maf"
     
     fp_tools = Tools(fp_config, cbio_maf, cbio_nonsigned_maf)
-    fp_tools.loadModule("R/R-3.6.3")
+    # R is reached through FacetsConfig: set FACETSAPI_R_PREFIX (e.g. the IRIS spack module-use + module load
+    # line) and FACETSAPI_R_LIB_LOC, or pass config=FacetsConfig(...) to FPTools. See doc/configuration.md.
 
     for key in prepared_metadata.master_file_dict:
         cur_files = prepared_metadata.master_file_dict.get(key)
@@ -122,9 +122,9 @@ def test_ascets(useSingleRun, allowDefaults):
     test_dataset.buildFacetsDataset()
     
     ext_tools = ExtTools(prepared_metadata)
-    #ext_tools.makeMergedFile(MetaDictMap.UNADJUSTED_SEG_FILE, "/juno/work/ccs/pricea2/pipelines/facetsAPI/tests/ascet_test/merged_seg.txt")
-    #ext_tools.runAscets("/juno/work/ccs/pricea2/pipelines/facetsAPI/tests/ascet_test2/")
-    test_dataset.writeReport("/juno/work/ccs/pricea2/pipelines/facetsAPI/tests/ascet_test2/sample_report.txt")
+    #ext_tools.makeMergedFile(MetaDictMap.UNADJUSTED_SEG_FILE, "/path/to/facetsAPI/tests/ascet_test/merged_seg.txt")
+    #ext_tools.runAscets("/path/to/facetsAPI/tests/ascet_test2/")
+    test_dataset.writeReport("/path/to/facetsAPI/tests/ascet_test2/sample_report.txt")
 
 if __name__ == '__main__':
     #clinical_sample_file  = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/bsub_run/data_clinical_sample.oncokb.txt"

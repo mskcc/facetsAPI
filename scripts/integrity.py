@@ -1,12 +1,14 @@
-import os
 
 import pandas as pd
 import sys
 import os
 from datetime import datetime
-#change this to wherever the facetsAPI is stored
-# sys.path.insert(1, '/juno/work/ccs/pricea2/pipelines/facetsAPI')
-sys.path.insert(1, '/juno/work/ccs/orgeraj/facetsAPI')
+# facetsAPI must be importable: `pip install -e /path/to/facetsAPI` (editable) or add the repository
+# root to PYTHONPATH. (Earlier versions hardcoded a cluster path here.)
+
+# Cluster-specific DMP mirror locations; override with environment variables on other systems.
+DMP_KEY_FILE = os.environ.get("FACETSAPI_DMP_KEY_FILE", "/data1/core006/ccs/shared/resources/impact/dmp_mirror_key/dmp_key_paired_latest.txt")
+DMP_BAM_ROOT = os.environ.get("FACETSAPI_DMP_BAM_ROOT", "/data1/core006/ccs/shared/resources/dmp_mirror/irb12_245")
 
 from facetsAPI import *
 
@@ -85,7 +87,7 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
 
 
     #create hashtable of bams connected to items 
-    keyfile = "/juno/work/ccs/shared/resources/impact/dmp_mirror_key/dmp_key_paired_latest.txt"
+    keyfile = DMP_KEY_FILE
     keydict={}
     header = True
     print("Creating sizedict")
@@ -104,11 +106,11 @@ def integrity_check(inFacetsMeta = False, inFacetsDataset = False):
 
                 if line[0] not in keydict and line[4] != "NA":
                     
-                    path = "/juno/res/dmpcollab/dmpshare/share/irb12_245/" + line[4][0] + "/" + line[4][1] + "/" + line[4] + ".bam"
+                    path = DMP_BAM_ROOT + "/" + line[4][0] + "/" + line[4][1] + "/" + line[4] + ".bam"
                     keydict[line[0]] = [line[4],path]  #[filename,path]
 
                 if line[8] not in keydict and line[10] != "NA": 
-                    path = "/juno/res/dmpcollab/dmpshare/share/irb12_245/" + line[10][0] + "/" + line[10][1] + "/" + line[10] + ".bam"
+                    path = DMP_BAM_ROOT + "/" + line[10][0] + "/" + line[10][1] + "/" + line[10] + ".bam"
                     keydict[line[9]] = [line[10],path]
     print("Sizedict done")
 

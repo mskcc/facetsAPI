@@ -28,6 +28,9 @@ certain operations such as alteration analysis.  The following variables are ava
 * wgd - A boolean value indicating if this sample is considered to have whole genome duplication.
 * fga - The fraction of the genome that is altered in this run.
 * frac_loh - The fraction of loss of heterozygosity for this run.
+* review_status / fit_name / review_author - the manifest row this run came from (e.g. `auto_qc_best_fit`, `default`, `auto-qc`).
+* fit_class - `"standard"`, or `"clinical"` / `"research"` for a run from a 2n pair (added in 0.6.0).
+* purity_hisens - which facets run type was read: `"purity"` or `"hisens"`.
 * facets_qc - A boolean value indicating if this sample passed facets qc.
 * tmb - The tumor mutational burden for this run as indicated in the clinical sample data.
 * msi - The MSI value for this run as indicated in the clinical sample data.

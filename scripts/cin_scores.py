@@ -5,8 +5,8 @@ import csv
 import re
 from statistics import mean, stdev, median
 
-# Change this to wherever facetsAPI is stored
-sys.path.insert(1, '/juno/work/ccs/pricea2/pipelines/facetsAPI')
+# facetsAPI must be importable: `pip install -e /path/to/facetsAPI` (editable) or add the repository
+# root to PYTHONPATH. (Earlier versions hardcoded a cluster path here.)
 
 from facetsAPI import FacetsMeta, FacetsDataset
 

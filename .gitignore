@@ -1,4 +1,7 @@
 # .gitignore
 __pycache__/
+*.pyc
 *.txt
 *.dat
+._*
+.DS_Store

@@ -1,9 +1,8 @@
 import sys
 import os
 
-#change this to wherever the facetsAPI is stored
-sys.path.insert(1, '/juno/work/ccs/pricea2/pipelines/facetsAPI')
-# sys.path.insert(1, '/juno/work/ccs/orgeraj/facetsAPI')
+# facetsAPI must be importable: `pip install -e /path/to/facetsAPI` (editable) or add the repository
+# root to PYTHONPATH. (Earlier versions hardcoded a cluster path here.)
 
 from facetsAPI import *
 
@@ -18,7 +17,7 @@ def correct_missing_annotations(useSingleRun, allowDefaults):
     prepared_metadata = FacetsMeta(clinical_sample_file, facets_dir, "purity")
     prepared_metadata.setSingleRunPerSample(useSingleRun,allowDefaults)
     
-    #prepared_metadata.selectSamplesFromFile("/juno/work/ccs/pricea2/pipelines/facetsAPI/scripts/test_ih_anno.txt")
+    #prepared_metadata.selectSamplesFromFile("/path/to/facetsAPI/scripts/test_ih_anno.txt")
 
     prepared_metadata.buildFacetsMeta()
     test_dataset = FacetsDataset(prepared_metadata)
@@ -26,12 +25,13 @@ def correct_missing_annotations(useSingleRun, allowDefaults):
     print("Got here")
     sys.exit()
 
-    fp_config = "/juno/work/ccs/bandlamc/git/ccs-cron/impact_facets/config_facets_preview.json"
+    fp_config = "/path/to/config_facets_preview.json"
     cbio_maf = "/work/ccs/shared/resources/impact_heme/cbio_mutations/data_mutations_extended.oncokb.vep.maf"
     cbio_nonsigned_maf = "/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/run_11-14-22/cbio_mutations/data_mutations_nonsignedout.vep.maf"
     
     fp_tools = FPTools(fp_config, cbio_maf, cbio_nonsigned_maf)
-    fp_tools.loadModule("R/R-3.6.3")
+    # R is reached through FacetsConfig: set FACETSAPI_R_PREFIX (e.g. the IRIS spack module-use + module load
+    # line) and FACETSAPI_R_LIB_LOC, or pass config=FacetsConfig(...) to FPTools. See doc/configuration.md.
 
     #fp_tools.runGenerateGenomicAnnotations("P-0043377-T01-IM6", "P-0043377-T01-IM6_P-0043377-N01-IM6","/work/ccs/shared/resources/impact/cbio_mutations/adam_cron/misc/facets/all/P-00433/P-0043377-T01-IM6_P-0043377-N01-IM6/")
     #sys.exit()

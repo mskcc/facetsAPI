@@ -1,12 +1,11 @@
 import sys
 import os
 
-#change this to wherever the facetsAPI is stored
-sys.path.insert(1, '/juno/work/ccs/pricea2/pipelines/facetsAPI')
+# facetsAPI must be importable: `pip install -e /path/to/facetsAPI` (editable) or add the repository
+# root to PYTHONPATH. (Earlier versions hardcoded a cluster path here.)
 
 from facetsAPI import *
 
-#os.system("python /juno/work/ccs/pricea2/pipelines/facetsAPI/facetsAPI/facetsAPI.py")
 
 if __name__ == '__main__':
     clinical_sample_file  = "/path/to/data_clinical_sample.oncokb.txt"
