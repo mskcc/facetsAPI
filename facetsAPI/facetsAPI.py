@@ -12,8 +12,15 @@ import pickle
 import statistics
 from datetime import datetime
 from datetime import date
+import matplotlib
+if not os.environ.get("MPLBACKEND") and not os.environ.get("DISPLAY") and sys.platform.startswith("linux"):
+    matplotlib.use("Agg")  # headless (cluster / container) default; MPLBACKEND still wins
 import matplotlib.pyplot as plt
 import traceback
+
+from .exceptions import (FacetsAPIError, FacetsConfigError, FacetsRepositoryError,
+                         ManifestError, ParseError, ExternalToolError)
+from .cn_calls import CN_CALL_TABLE as _CN_CALL_TABLE, get_cn_call as _get_cn_call
 
 
 
@@ -325,69 +332,9 @@ class FacetsMeta:
     headNeck_carcinoma  = ["HNSC","OPHSC","HPHSC","OCSC","HNSCUP","LXSC","HNNE","SNSC","ODGC"]
     germCell_tumor      = ["MGCT","SEM","VMT","BMT","OYST","GCTSTM","NSGCT","EMBCA","OGCT","OMGCT","TT","TYST","VDYS","ODYS","OIMT","VYST","VMGCT","BMGCT","BIMT","VIMT","BYST","OMT","GCT"]
 
-    CN_CALL_TABLE = {
-        # No genome doubling (wgd=False)
-        (False, 0, 0):         'HOMDEL',
-        (False, 0, None):      'HOMDEL',
-        (False, 1, 1):         'HETLOSS',
-        (False, 1, None):      'HETLOSS',
-        (False, 2, 0):         'CNLOH',
-        (False, 2, None):      None,  # DIPLOID or CNLOH ambiguous
-        (False, 3, 0):         'CNLOH & GAIN',
-        (False, 3, None):      'GAIN',
-        (False, 4, 0):         'CNLOH & GAIN',
-        (False, 4, None):      'GAIN',
-        (False, 5, 0):         'AMP (LOH)',
-        (False, 5, None):      'AMP',
-        (False, 6, 0):         'AMP (LOH)',
-        (False, 6, None):      'AMP',
-        (False, 2, 1):         'DIPLOID',
-        (False, 3, 2):         'GAIN',
-        (False, 4, 3):         'GAIN',
-        (False, 5, 4):         'AMP',
-        (False, 6, 5):         'AMP',
-        (False, 7, 6):         'AMP',
-        (False, 4, 2):         'TETRAPLOID',
-        (False, 5, 3):         'AMP',
-        (False, 6, 4):         'AMP',
-        (False, 7, 5):         'AMP',
-        (False, 8, 6):         'AMP',
-        (False, 6, 3):         'AMP (BALANCED)',
-        (False, 7, 4):         'AMP',
-        (False, 8, 5):         'AMP',
-        (False, 9, 6):         'AMP',
-
-        # With genome doubling (wgd=True)
-        (True,  0, 0):         'HOMDEL',
-        (True,  0, None):      'HOMDEL',
-        (True,  1, 1):         'LOSS BEFORE & AFTER',
-        (True,  1, None):      'LOSS BEFORE & AFTER',
-        (True,  2, 2):         'LOSS BEFORE',
-        (True,  2, None):      'LOSS BEFORE or DOUBLE LOSS AFTER',
-        (True,  3, 3):         'CNLOH BEFORE & LOSS',
-        (True,  3, None):      'LOSS',
-        (True,  4, 4):         'CNLOH BEFORE',
-        (True,  4, None):      'TETRAPLOID or CNLOH BEFORE',
-        (True,  5, 5):         'CNLOH BEFORE & GAIN',
-        (True,  5, None):      'GAIN',
-        (True,  6, 6):         'AMP (LOH)',
-        (True,  6, None):      'AMP',
-        (True,  2, 1):         'DOUBLE LOSS AFTER',
-        (True,  3, 2):         'LOSS AFTER',
-        (True,  4, 3):         'CNLOH AFTER',
-        (True,  5, 4):         'LOSS & GAIN',
-        (True,  6, 5):         'AMP',
-        (True,  7, 6):         'AMP',
-        (True,  4, 2):         'TETRAPLOID',
-        (True,  5, 3):         'GAIN',
-        (True,  6, 4):         'AMP',
-        (True,  7, 5):         'AMP',
-        (True,  8, 6):         'AMP',
-        (True,  6, 3):         'AMP (BALANCED)',
-        (True,  7, 4):         'AMP',
-        (True,  8, 5):         'AMP',
-        (True,  9, 6):         'AMP',
-    }
+    # Copy-number call table keyed on (wgd, tcn, lcn). Lives in cn_calls.py; aliased here
+    # so existing code referring to FacetsMeta.CN_CALL_TABLE keeps working.
+    CN_CALL_TABLE = _CN_CALL_TABLE
 
     # Mapping of chromosome arms based on position in hg19. 
     # Format is chromosome: [p_start, p_end, q_start, q_end]
@@ -563,11 +510,11 @@ class FacetsMeta:
     @staticmethod
     def printLogo():
         print("~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~") 
-        print("|"+bcolors.OKBLUE+" ______   ______     ______     ______     ______   ______    "+bcolors.OKCYAN+"    ______     ______   __    "+bcolors.ENDC+"|") 
-        print("|"+bcolors.OKBLUE+"/\  ___\ /\  __ \   /\  ___\   /\  ___\   /\__  _\ /\  ___\   "+bcolors.OKCYAN+"   /\  __ \   /\  == \ /\ \   "+bcolors.ENDC+"|")
-        print("|"+bcolors.OKBLUE+"\ \  __\ \ \  __ \  \ \ \____  \ \  __\   \/_/\ \/ \ \___  \  "+bcolors.OKCYAN+"   \ \  __ \  \ \  _-/ \ \ \  "+bcolors.ENDC+"|")
-        print("|"+bcolors.OKBLUE+" \ \_\    \ \_\ \_\  \ \_____\  \ \_____\    \ \_\  \/\_____\ "+bcolors.OKCYAN+"    \ \_\ \_\  \ \_\    \ \_\ "+bcolors.ENDC+"|")
-        print("|"+bcolors.OKBLUE+"  \/_/     \/_/\/_/   \/_____/   \/_____/     \/_/   \/_____/  "+bcolors.OKCYAN+"    \/_/\/_/   \/_/     \/_/ "+bcolors.ENDC+"|")
+        print("|"+bcolors.OKBLUE+r" ______   ______     ______     ______     ______   ______    "+bcolors.OKCYAN+r"    ______     ______   __    "+bcolors.ENDC+"|") 
+        print("|"+bcolors.OKBLUE+r"/\  ___\ /\  __ \   /\  ___\   /\  ___\   /\__  _\ /\  ___\   "+bcolors.OKCYAN+r"   /\  __ \   /\  == \ /\ \   "+bcolors.ENDC+"|")
+        print("|"+bcolors.OKBLUE+r"\ \  __\ \ \  __ \  \ \ \____  \ \  __\   \/_/\ \/ \ \___  \  "+bcolors.OKCYAN+r"   \ \  __ \  \ \  _-/ \ \ \  "+bcolors.ENDC+"|")
+        print("|"+bcolors.OKBLUE+r" \ \_\    \ \_\ \_\  \ \_____\  \ \_____\    \ \_\  \/\_____\ "+bcolors.OKCYAN+r"    \ \_\ \_\  \ \_\    \ \_\ "+bcolors.ENDC+"|")
+        print("|"+bcolors.OKBLUE+r"  \/_/     \/_/\/_/   \/_____/   \/_____/     \/_/   \/_____/  "+bcolors.OKCYAN+r"    \/_/\/_/   \/_/     \/_/ "+bcolors.ENDC+"|")
         print("~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~-===-~~")
         
     ######################
@@ -2439,11 +2386,8 @@ class FacetsRun:
             Return the copy-number call string based on this run's WGD status,
             total copy number (tcn) and lesser copy number (lcn).
             """
-            # normalize NA lcn to None
-            key = (bool(self.wgd), tcn, lcn if lcn is not None else None)
-            # try exact match
-            call = FacetsMeta.CN_CALL_TABLE.get(key)
-            return call
+            # NA handling (None / NaN / the -1 sentinel) and the lookup live in cn_calls.get_cn_call.
+            return _get_cn_call(self.wgd, tcn, lcn)
 
     #Add a segment to the segment array of type FacetsSegment.
     def addSegment(self, seg):

@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name='facetsAPI',
-    version='0.5.0',
+    version='0.6.0',
     author='Adam Price',
     author_email='pricea2@mskcc.org',
     description='Toolkit for interacting and manipulating Impact FACETS data at MSK.',
@@ -17,5 +17,6 @@ setuptools.setup(
     },
     license='MIT',
     packages=['facetsAPI'],
-    install_requires=['pandas', 'rpy2'],
+    python_requires='>=3.9',
+    install_requires=['pandas>=1.3', 'numpy', 'matplotlib'],
 )
