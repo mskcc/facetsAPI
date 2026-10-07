@@ -28,6 +28,7 @@ from .layout import (discover_sample, select_classes, read_manifest, short_sampl
                      fit_dir as _fit_dir, locate_fit_files, validate_fit_class, validate_mode, NOT_SELECTED)
 from .fitpolicy import (FitPolicy, FitCandidate, tier_of, label_of,
                         TIER_REVIEWED, TIER_AUTOQC, TIER_DEFAULT)
+from .config import FacetsConfig
 
 
 def _to_float(value):
@@ -77,76 +78,65 @@ class bcolors:
 
 
 ######################
-# ExtTools:    This class functions as a wrapper to execute certain functions from external sources,
+# ExtTools:    This class functions as a wrapper to execute certain functions from external sources.
+#              R is invoked through FacetsConfig (see config.py): set FACETSAPI_R_PREFIX / FACETSAPI_RSCRIPT
+#              or pass config=FacetsConfig(...) to control how Rscript is found. Nothing is submitted to a
+#              scheduler; wrap the call yourself (sbatch, a Nextflow process, a container) if you need one.
 ######################
 class ExtTools:
-    def __init__(self, ref_meta):
+    def __init__(self, ref_meta, config=None):
         if not isinstance(ref_meta, FacetsMeta):
-            raise FacetsConfigError("Error in ExtTools(). ref_meta must be of type FacetsMeta.")
+            raise FacetsConfigError("ExtTools(): ref_meta must be of type FacetsMeta.")
         self.ref_meta = ref_meta
+        self.config = config if config is not None else FacetsConfig.from_env()
+        if not isinstance(self.config, FacetsConfig):
+            raise FacetsConfigError("ExtTools(): config must be a FacetsConfig.")
 
-    #This function will module load rVersionString on juno.
-    def loadModule(self, moduleToLoad):
-        os.system("module load " + moduleToLoad)
-    #This function will run facets on a sample.
-    def runFacets(self,):
-
- # run_facets_cmd = paste('bsub -J "{job_id}" -We 1:59 -R "rusage[mem=16]" {wait_for_jobs} ',
- #                       '-o {log_dir}/{job_id}.log -e {log_dir}/{job_id}.err  ',
- #                       '/opt/common/CentOS_7-dev/bin/Rscript /juno/work/ccs/shared/software/R_libs/facetsSuite/2.0.6/run-facets-wrapper.R ',
- #                       '--facets-lib-path /home/pricea2/R/x86_64-pc-linux-gnu-library/3.5/ ', 
- #                       '--counts-file {counts_file} ',
- #                       '--sample-id {tag} ',
- #                       '--snp-window-size 250 --normal-depth 35 ',
- #                       '--min-nhet 15 --purity-min-nhet 15 --seed 100 ',
- #                       '--cval 50 --purity-cval 100 --legacy-output T ',
- #                       '--genome hg19 --directory {output_dir} ')
-        pass
+    #Running FACETS itself is the job of the processing pipeline (facets-suite run-facets-wrapper.R), not this API.
+    def runFacets(self):
+        raise NotImplementedError("ExtTools.runFacets() is not implemented; FACETS runs are produced by the IMPACT "
+                                  "FACETS pipeline (facets-suite run-facets-wrapper.R), which this API only reads.")
 
     #This function will make a merged file for any file type in the MetaDictMap with a shared header.
-    #fileType should be a MetaDictMap.FILETYPE. 
+    #fileType should be a MetaDictMap.FILETYPE.
     #This will return a path to the written file.
     def makeMergedFile(self, fileType, outfile_path):
-        #Keep track and don't duplicate any files. 
+        #Keep track and don't duplicate any files.
         #This can happen when there are alt fits included for the same sample.
         #For instance a seg file merge could merge a default and alt fit, but would duplicate
         #the exact values.
-        completed_files = [] 
+        completed_files = set()
+        wrote_header = False
         with open(outfile_path, 'w') as outfile:
-            writeHeader = True
             for item in self.ref_meta.master_file_dict:
                 cur_file = self.ref_meta.master_file_dict.get(item)[fileType]
+                if not cur_file:
+                    continue
                 base_file = os.path.basename(cur_file)
                 if base_file in completed_files:
                     continue
-                else:
-                    completed_files.append(base_file)
-                
-                #Write the header only for the first file.
-                if writeHeader is True:
-                    os.system("cat " + cur_file + " > " + outfile_path)
-                    writeHeader = False
-                else:
-                    os.system("tail -n +2 " + cur_file + " >> " + outfile_path)
-
+                completed_files.add(base_file)
+                with open(cur_file) as infile:
+                    header = infile.readline()
+                    if not wrote_header:
+                        outfile.write(header if header.endswith("\n") else header + "\n")
+                        wrote_header = True
+                    for line in infile:
+                        outfile.write(line if line.endswith("\n") else line + "\n")
         return outfile_path
 
-    #This function will run ascets.
-    #bsub -J "P-0000012-T03-IM3_P-0000012-N01-IM3" -We 1:59 -n 2 bash -c "Rscript run_ascets.R -i /juno/work/ccs/pricea2/data/ascets/input_segs/P-0000012-T03-IM3_P-0000012-N01-IM3_purity.seg -c /juno/work/ccs/pricea2/pipelines/ascets/ascets/genomic_arm_coordinates_hg19.txt -m 0.5 -k F -a 0.7 -o P-0000012-T03-IM3_P-0000012-N01-IM3"
+    #This function will run ascets (arm-level aneuploidy calls) over the merged seg file of this object's FacetsMeta.
+    #It runs inline (no scheduler) and writes runLog.out / runLog.err into output_dir. Returns the output prefix.
     def runAscets(self, output_dir="", ref_genome_coords="hg19", min_arm_breadth=0.5, keep_noise=False, arm_alt_frac_thresh=0.7, use_adjusted=True):
-        arm_coords_file = ""
-        merged_seg_tmp_file = ""
-
         if output_dir == "":
-            raise FacetsConfigError("Error in Tools.runAscets(). No output path provided.")
-        if ref_genome_coords != "hg19" and ref_genome_coords != "hg38":
-            raise FacetsConfigError("Error in Tools.runAscets(). ref_genome_coords must be hg19 or hg38.")
-        #Select the appropriate genomic arm coordinate file. 
-        else:
-            if ref_genome_coords == "hg19":
-                arm_coords_file = os.path.dirname(__file__) + "/../tools/ascets/genomic_arm_coordinates_hg19.txt"
-            if ref_genome_coords == "hg38":
-                arm_coords_file = os.path.dirname(__file__) + "/../tools/ascets/genomic_arm_coordinates_hg38.txt"
+            raise FacetsConfigError("ExtTools.runAscets(): No output path provided.")
+        if ref_genome_coords not in ("hg19", "hg38"):
+            raise FacetsConfigError("ExtTools.runAscets(): ref_genome_coords must be hg19 or hg38.")
+        arm_coords_file   = os.path.join(self.config.ascets_dir, "genomic_arm_coordinates_%s.txt" % ref_genome_coords)
+        run_ascets_script = os.path.join(self.config.ascets_dir, "run_ascets.R")
+        for needed in (arm_coords_file, run_ascets_script):
+            if not os.path.isfile(needed):
+                raise FacetsConfigError("ExtTools.runAscets(): missing %s (set FACETSAPI_ASCETS_DIR or FacetsConfig.ascets_dir)." % needed)
 
         #Print some notes on dependencies.
         print("\t\tNote: Ascets requires R 3.6.* and requires tidyverse and data.table libraries.")
@@ -154,15 +144,14 @@ class ExtTools:
 
         #Make an output folder if necessary.
         if os.path.isdir(output_dir):
-            print ("\t\tAscets folder already exists: " + output_dir)
+            print("\t\tAscets folder already exists: " + output_dir)
         else:
-            print ("\t\tCreating ascets output folder at: " + output_dir)
-            os.system("mkdir " + output_dir)
+            print("\t\tCreating ascets output folder at: " + output_dir)
+            os.makedirs(output_dir, exist_ok=True)
 
         #Make an adjusted or unadjusted merged seg file to use as ascets input.
         #This will use everything in the FacetsMeta reference object for ExtTools.
-        adj_str = ""
-        merged_seg_tmp_file = output_dir + "/merged_seg_data.seg"
+        merged_seg_tmp_file = os.path.join(output_dir, "merged_seg_data.seg")
         if use_adjusted:
             adj_str = "facetsAdjustedSeg"
             self.makeMergedFile(MetaDictMap.ADJUSTED_SEG_FILE, merged_seg_tmp_file)
@@ -170,46 +159,48 @@ class ExtTools:
             adj_str = "facetsUnadjustedSeg"
             self.makeMergedFile(MetaDictMap.UNADJUSTED_SEG_FILE, merged_seg_tmp_file)
 
-        noise_str = ""
-        keep_noise_short = ""
-        if keep_noise:
-            keep_noise_short = "T"
-            noise_str = "keepNoise"
-        else:
-            keep_noise_short = "F"
-            noise_str = "filterNoise"
-
-        out_log_file = output_dir + "/runLog.out"
-        err_log_file = output_dir + "/runLog.err"
+        keep_noise_short = "T" if keep_noise else "F"
+        noise_str        = "keepNoise" if keep_noise else "filterNoise"
 
         #Make an output prefix:
         out_prefix = "FacetsAscetsRun_" + ref_genome_coords + "_breadth" + str(min_arm_breadth) + "_" + noise_str + "_armAltFracThresh" + str(arm_alt_frac_thresh) + "_" + adj_str + "_" + str(date.today())
 
-        run_ascets_script = os.path.dirname(__file__) + "/../tools/ascets/run_ascets.R"
-
-        #Load required version of R.
-        self.loadModule("R/R-3.6.3")
-
-        #Submit ascets run to the queue.
-        ascets_cmd = "bsub -J " + out_prefix + " -o " + out_log_file + " -e " + err_log_file + " -We 1:59 -n 2 bash -c \"Rscript " + run_ascets_script + " -i " + merged_seg_tmp_file + " -c " + arm_coords_file + " -m " + str(min_arm_breadth) + " -k " + keep_noise_short + " -a " + str(arm_alt_frac_thresh) + " -o " + out_prefix + " -p " + output_dir + "\""
+        args = [run_ascets_script, "-i", merged_seg_tmp_file, "-c", arm_coords_file, "-m", str(min_arm_breadth),
+                "-k", keep_noise_short, "-a", str(arm_alt_frac_thresh), "-o", out_prefix, "-p", output_dir]
         print("\t\t\tRunning ascets...")
-        print(ascets_cmd)
-        os.system(ascets_cmd)
-        
+        print("\t\t\t" + self.config.compose_r_command(args))
+        result = self.config.run_r(args, check=False)
+        with open(os.path.join(output_dir, "runLog.out"), "w") as fh:
+            fh.write(result.stdout or "")
+        with open(os.path.join(output_dir, "runLog.err"), "w") as fh:
+            fh.write(result.stderr or "")
+        if result.returncode != 0:
+            raise ExternalToolError(self.config.compose_r_command(args), result.returncode, result.stderr)
+        return out_prefix
+
+
 ######################
 # FPTools:    This class functions as a wrapper to execute certain functions from Facets Preview.
+#             The facets-preview config json is required (config_file=..., FACETSAPI_FP_CONFIG, or FacetsConfig.fp_config_file).
 ######################
 class FPTools:
-    genomic_anno_wrapper_script = "/juno/work/ccs/pricea2/pipelines/facetsAPI/R/fp_generate_genomic_anno_wrapper.R"
-
-    def __init__(self, config_file="/juno/work/ccs/bandlamc/git/ccs-cron/impact_facets/config_facets_preview.json", cbio_maf_file="", cbio_nonsigned_maf_file=""):
-        self.config_file             = config_file
+    def __init__(self, config_file=None, cbio_maf_file="", cbio_nonsigned_maf_file="", config=None):
+        self.config = config if config is not None else FacetsConfig.from_env()
+        if not isinstance(self.config, FacetsConfig):
+            raise FacetsConfigError("FPTools(): config must be a FacetsConfig.")
+        if config_file:
+            self.config = self.config.with_(fp_config_file=config_file)
         self.cbio_maf_file           = cbio_maf_file
         self.cbio_nonsigned_maf_file = cbio_nonsigned_maf_file
 
-    #This function will module load rVersionString on juno.
-    def loadModule(self, moduleToLoad):
-        os.system("module load " + moduleToLoad)
+    @property
+    def config_file(self):
+        return self.config.fp_config_file
+
+    @property
+    def genomic_anno_wrapper_script(self):
+        return self.config.fp_wrapper_script
+
     #This function runs the wrapper script, R/fp_generate_genomic_anno_wrapper.R
     #That script takes these arguments in this order:
     #facets_preview_config_file = args[1]
@@ -218,39 +209,44 @@ class FPTools:
     #sample_path = args[4]
     #cbio_maf_path = args[5]
     #cbio_maf_nonsignedout_path = args[6]
+    #r_lib_loc = args[7] (optional; the R library holding facetsPreview)
     def runGenerateGenomicAnnotations(self, short_id, long_id, path):
-        run_cmd = "bsub -W 1:59 -n 1 -R \"rusage[mem=8G]\" Rscript " + self.genomic_anno_wrapper_script + " " + \
-                self.config_file + " " + short_id + " " + long_id + " " + path + " " + \
-                self.cbio_maf_file + " " + self.cbio_nonsigned_maf_file
-        print(run_cmd)
-        os.system(run_cmd)
-        #sys.exit()
+        if not self.config.fp_config_file:
+            raise FacetsConfigError("FPTools.runGenerateGenomicAnnotations(): facets-preview config file not set. "
+                                    "Pass FPTools(config_file=...) or set FACETSAPI_FP_CONFIG.")
+        if not os.path.isfile(self.config.fp_wrapper_script):
+            raise FacetsConfigError("FPTools.runGenerateGenomicAnnotations(): wrapper script not found: %s "
+                                    "(set FACETSAPI_FP_WRAPPER)." % self.config.fp_wrapper_script)
+        args = [self.config.fp_wrapper_script, self.config.fp_config_file, short_id, long_id, path,
+                self.cbio_maf_file, self.cbio_nonsigned_maf_file]
+        if self.config.r_lib_loc:
+            args.append(self.config.r_lib_loc)
+        print(self.config.compose_r_command(args))
+        return self.config.run_r(args)
+
+    @staticmethod
+    def _backupFiles(ref_meta, slot, what):
+        if not isinstance(ref_meta, FacetsMeta):
+            raise FacetsConfigError("FPTools backup: ref_meta must be of type FacetsMeta.")
+        print("Backing up " + what + " files.")
+        done = set()
+        for item in ref_meta.master_file_dict:
+            cur_file = ref_meta.master_file_dict.get(item)[slot]
+            if not cur_file or cur_file in done or not os.path.isfile(cur_file):
+                continue
+            done.add(cur_file)
+            shutil.copy2(cur_file, cur_file + "." + str(date.today()) + ".bak")
+        return len(done)
+
     #This function will make backup files of existing manifests for every sample in the provided FacetsMeta object.
     def backupManifests(self, ref_meta):
-        if not isinstance(ref_meta, FacetsMeta):
-            raise FacetsConfigError("Error in FPTools.backupManifests(). ref_meta must be of type FacetsMeta.")
-        print("Backing up manifest files.")
-        for item in ref_meta.master_file_dict:
-            curSample   = ref_meta.master_file_dict.get(item)
-            curManifest = curSample[MetaDictMap.MANIFEST_FILE]
-            bakManifest = curManifest + "." + str(date.today()) + ".bak"
-            backup_cmd  = "cp " + curManifest + " " + bakManifest
-            os.system(backup_cmd)
+        return FPTools._backupFiles(ref_meta, MetaDictMap.MANIFEST_FILE, "manifest")
+
     #This function will make backup files of existing facets qc files for every sample in the provided FacetsMeta object.
     def backupFacetsQC(self, ref_meta):
-        if not isinstance(ref_meta, FacetsMeta):
-            raise FacetsConfigError("Error in FPTools.backupFacetsQC(). ref_meta must be of type FacetsMeta.")
-        print("Backing up Facets QC files.")
-        for item in ref_meta.master_file_dict:
-            curSample   = ref_meta.master_file_dict.get(item)
-            curQC = curSample[MetaDictMap.FACETS_QC_FILE]
-            bakQC = curQC + "." + str(date.today()) + ".bak"
-            backup_cmd  = "cp " + curQC + " " + bakQC
-            os.system(backup_cmd)
-######################
-# MetaDictMap:    This class is a map of files for the master_file_dict in FacetsMeta for better readability. 
-#                 When calling master_file_dict, instead of numbered indeces, use MetaDictMap.FILE_NAME.
-######################
+        return FPTools._backupFiles(ref_meta, MetaDictMap.FACETS_QC_FILE, "facets_qc")
+
+
 class MetaDictMap:
     OUT_FILE = 0
     CNCF_FILE = 1
@@ -850,17 +846,20 @@ class FacetsDataset:
                 else:
                     outfile.write(str(cur_run.msi) + "\t")
                 outfile.write("\n")
-    #This function will make backup files of existing manifests for every sample in the provided FacetsMeta object.
+    #This function will make backup copies (<file>.<date>.bak) of the ccf.maf file of every run in the provided FacetsMeta object.
     def backupMafs(self, ref_meta):
         if not isinstance(ref_meta, FacetsMeta):
-            raise FacetsConfigError("Error in FacetsDataset.backupMafs(). ref_meta must be of type FacetsMeta.")
+            raise FacetsConfigError("FacetsDataset.backupMafs(): ref_meta must be of type FacetsMeta.")
         print("Backing up ccf.maf files.")
+        done = set()
         for item in ref_meta.master_file_dict:
-            curSample   = ref_meta.master_file_dict.get(item)
-            curManifest = curSample[MetaDictMap.CCF_MAF_FILE]
-            bakManifest = curManifest + "." + str(date.today()) + ".bak"
-            backup_cmd  = "cp " + curManifest + " " + bakManifest
-            os.system(backup_cmd)
+            cur_maf = ref_meta.master_file_dict.get(item)[MetaDictMap.CCF_MAF_FILE]
+            if not cur_maf or cur_maf in done or not os.path.isfile(cur_maf):
+                continue
+            done.add(cur_maf)
+            shutil.copy2(cur_maf, cur_maf + "." + str(date.today()) + ".bak")
+        return len(done)
+
     #This function outputs a text file containing information that summarizes a facets dataset
     #This includes metrics like number of best/acceptable fits, number of failed samples that couldn't build, number of cancer types, etc
     #The output contains the date and time.  

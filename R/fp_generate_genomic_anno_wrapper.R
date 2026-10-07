@@ -1,11 +1,18 @@
 
+# Arguments (positional):
+#   1 facets_preview_config_file   2 tumor_sample   3 sample_id   4 sample_path
+#   5 cbio_maf_path   6 cbio_maf_nonsignedout_path
+#   7 (optional) R library directory holding facetsPreview (facetsAPI passes FacetsConfig.r_lib_loc / FACETSAPI_R_LIB_LOC)
+args <- commandArgs(trailingOnly = TRUE)
+if (length(args) < 6) stop("fp_generate_genomic_anno_wrapper.R needs at least 6 arguments")
+lib_loc <- if (length(args) >= 7 && nzchar(args[7])) args[7] else NULL
+
 library(data.table)
 library(doParallel)
-library(facetsPreview, lib.loc = '/juno/work/ccs/pricea2/ondemand/R_libs/')
+library(dplyr)
+if (is.null(lib_loc)) library(facetsPreview) else library(facetsPreview, lib.loc = lib_loc)
 
 #options(echo=TRUE) # To see commands in output file
-
-args <- commandArgs(trailingOnly = TRUE)
 
 facets_preview_config_file = args[1]
 tumor_sample = args[2]
