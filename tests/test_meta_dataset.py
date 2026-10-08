@@ -113,7 +113,7 @@ class MetaDatasetTests(unittest.TestCase):
         self.assertEqual(m.fit_map[std["autoqc_only"][0]][0], "AutoQC_Best")
         self.assertEqual(m.fit_map[std["default_only"][0]][0], "Default")
         c = m.build_counts
-        self.assertEqual((c["Best"], c["Acceptable"], c["AutoQC_Best"], c["Default"]), (2, 1, 2, 2))
+        self.assertEqual((c["Best"], c["Acceptable"], c["AutoQC_Best"], c["Default"]), (3, 1, 2, 2))
         self.assertEqual((c["not_found"], c["missing_manifest"], c["multi_normal"]), (1, 1, 1))
 
     def test_fit_dirs_resolve_from_discovered_dir_not_manifest_path(self):
@@ -210,13 +210,26 @@ class MetaDatasetTests(unittest.TestCase):
         self.assertEqual(m2.build_counts["missing_files"], 3)
         self.assertNotIn(pair + "#research/default/ultra", m2.master_file_dict)
 
+    def test_duplicate_manifest_rows(self):
+        tumor, pair = self.info["standard"]["duplicate_rows"]
+        m = self.meta()
+        self.assertEqual(m.master_file_dict[tumor][MetaDictMap.FIT_STATUS], "reviewed_best_fit#default#richara4/auto-qc-script")
+        m = self.meta(single=False)
+        keys = sorted(k for k in m.master_file_dict if k.startswith(pair))
+        self.assertEqual(keys, [pair + "#alt_dipLogR_0.06", pair + "#default"])
+        # the reviewed row wins over the later not_reviewed row for the same fit
+        self.assertEqual(m.master_file_dict[pair + "#default"][MetaDictMap.FIT_STATUS], "reviewed_best_fit#default#richara4/auto-qc-script")
+        self.assertEqual(m.master_file_dict[pair + "#default"][MetaDictMap.FIT_TIER], "reviewed")
+        self.assertEqual(m.build_counts["duplicate_rows"], 1)
+        self.assertEqual(m.build_counts["runs_registered"], len(m.master_file_dict))
+
     # ---- dataset -----------------------------------------------------------------------
     def test_dataset_single_run(self):
         m = self.meta(fit_class="both")
         ds = FacetsDataset(m)
         quiet(ds.buildFacetsDataset)
-        self.assertEqual(len(ds.runList), 9)
-        self.assertEqual(len(ds.sampleList), 7)
+        self.assertEqual(len(ds.runList), 10)
+        self.assertEqual(len(ds.sampleList), 8)
         tumor, pair = self.info["twon"]["full"]
         sample = ds.sampleList[pair]
         self.assertEqual(sorted(r.fit_class for r in sample.runs), ["clinical", "research"])

@@ -114,6 +114,19 @@ class FitPolicyTests(unittest.TestCase):
         self.assertEqual(label_of("not_reviewed", "default"), "Default")
         self.assertEqual(label_of("not_reviewed", "alt"), "Unreviewed")
 
+    def test_representative_rows(self):
+        df = pd.DataFrame({
+            "path": ["/p/"] * 5, "fit_name": ["default", "alt", "default", "refit", "refit"],
+            "review_status": ["reviewed_best_fit", "not_reviewed", "not_reviewed", "reviewed_best_fit", "reviewed_best_fit"],
+            "reviewed_by": ["auto-qc-script", "NA", "NA", "alice", "bob"],
+            "date_reviewed": ["2022-12-15 02:03:19", "NA", "NA", "2020-06-01 16:09:19", "2024-01-01 00:00:00"],
+        })
+        rows, dropped = FitPolicy().representative_rows(df)
+        self.assertEqual(dropped, 2)
+        self.assertEqual(list(rows["fit_name"]), ["default", "alt", "refit"])
+        self.assertEqual(rows.loc[rows["fit_name"] == "default", "review_status"].iloc[0], "reviewed_best_fit")
+        self.assertEqual(rows.loc[rows["fit_name"] == "refit", "reviewed_by"].iloc[0], "bob")   # newest review wins
+
     def test_newest_reviewed_tie_break(self):
         df = pd.DataFrame({
             "path": ["/p/"] * 3, "fit_name": ["old", "new", "default"],

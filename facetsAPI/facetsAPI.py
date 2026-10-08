@@ -546,7 +546,7 @@ class FacetsMeta:
     #                         patient id, etc. from the clinical sample file.
     ######################
     COUNTER_KEYS = ("samples_considered", "not_found", "multi_normal", "missing_manifest", "missing_class",
-                    "bad_manifest", "no_fit_selected", "missing_files", "skipped_ultra", "skipped_not_selected",
+                    "bad_manifest", "no_fit_selected", "missing_files", "skipped_ultra", "skipped_not_selected", "duplicate_rows",
                     "standard_samples", "twon_samples", "runs_registered",
                     "Best", "Acceptable", "AutoQC_Best", "AutoQC_Pass", "Default", "Unreviewed")
     CLINICAL_REQUIRED_COLUMNS = ("SAMPLE_ID", "PATIENT_ID", "CANCER_TYPE", "CANCER_TYPE_DETAILED", "TUMOR_PURITY",
@@ -604,7 +604,9 @@ class FacetsMeta:
         pref, pref_files, _tried = self.fit_policy.select_fit(manifest, mode, fc.class_dir)
         if pref is not None and id not in self.fit_map:
             self.fit_map[id] = [pref.label, _fit_dir(fc.class_dir, pref.fit_name) + "/"]
-        for idx, row in self.fit_policy.eligible_rows(manifest).iterrows():
+        rows, n_dup = self.fit_policy.representative_rows(manifest)
+        counts["duplicate_rows"] += n_dup
+        for idx, row in rows.iterrows():
             fit_name = str(row["fit_name"])
             status   = str(row["review_status"])
             files, missing = locate_fit_files(_fit_dir(fc.class_dir, fit_name), mode)
@@ -748,6 +750,8 @@ class FacetsMeta:
         print("\tSkipped " + str(counts["missing_files"]) + " fits due to missing files.")
         if counts["skipped_ultra"]:
             print("\tExcluded " + str(counts["skipped_ultra"]) + " ultra fits (FitPolicy.include_ultra_fits is False).")
+        if counts["duplicate_rows"]:
+            print("\tCollapsed " + str(counts["duplicate_rows"]) + " duplicate manifest rows (same fit listed more than once; highest-ranked row kept).")
         print("\t\tTotal runs extracted: " + str(len(self.master_file_dict)))
 
 

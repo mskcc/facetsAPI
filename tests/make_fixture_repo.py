@@ -163,7 +163,8 @@ def write_sample_dir(class_dir, pair, fits, comment_line=True, fake_prefix="/non
         manifest_rows.append((name, f.get("status", "not_reviewed"), f.get("reviewed_by", "NA"), f.get("facets_qc", True)))
         if name == "Not selected":
             continue
-        qc_rows.append((name, f.get("status") in ("reviewed_best_fit", "auto_qc_best_fit"), f.get("facets_qc", True)))
+        if name not in [q[0] for q in qc_rows]:
+            qc_rows.append((name, f.get("status") in ("reviewed_best_fit", "auto_qc_best_fit"), f.get("facets_qc", True)))
         if f.get("ultra"):
             write_fit(os.path.join(class_dir, name), pair, modes=("hisens",), with_qc_gene=False,
                       with_rdata=f.get("with_rdata", True), **fit_kwargs)
@@ -232,6 +233,16 @@ def build(root, with_2n=True):
     write_sample_dir(sdir(tumor, pair1), pair1, [{"fit_name": "default", "status": "not_reviewed"}])
     write_sample_dir(sdir(tumor, pair2), pair2, [{"fit_name": "default", "status": "reviewed_best_fit", "reviewed_by": "dan"}])
     info["standard"]["multi_normal"] = (tumor, pair1, pair2)
+
+    # (j) manifest history: 'default' listed twice (reviewed_best_fit first, not_reviewed later) plus a Not selected row
+    tumor, pair = _pair(10)
+    write_sample_dir(sdir(tumor, pair), pair, [
+        {"fit_name": "default", "status": "reviewed_best_fit", "reviewed_by": "richara4/auto-qc-script"},
+        {"fit_name": "alt_dipLogR_0.06", "status": "not_reviewed"},
+        {"fit_name": "default", "status": "not_reviewed"},
+        {"fit_name": "Not selected", "status": "not_reviewed"},
+    ])
+    info["standard"]["duplicate_rows"] = (tumor, pair)
 
     # (i) in the clinical file but no directory at all
     tumor_missing, _ = _pair(9)

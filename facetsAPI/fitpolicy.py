@@ -169,6 +169,28 @@ class FitPolicy:
                     emit(rows.loc[rows["review_status"].astype(str) == status], tier)
         return out
 
+    def representative_rows(self, manifest_df):
+        """One row per fit_name from eligible_rows(): manifests keep review history, so a fit can appear
+        several times (e.g. 'default' as reviewed_best_fit and again as not_reviewed). The highest-ranked
+        row wins: tier (reviewed > autoqc > default > unreviewed), then status order within the tier,
+        then newest date_reviewed, then the LAST manifest row. Returns (rows, n_duplicates_dropped)."""
+        rows = self.eligible_rows(manifest_df)
+        tier_rank = {TIER_REVIEWED: 0, TIER_AUTOQC: 1, TIER_DEFAULT: 2, TIER_UNREVIEWED: 3}
+        status_rank = {st: i for tier in TIERS.values() if tier for i, st in enumerate(tier)}
+        dates = pd.to_datetime(rows["date_reviewed"], errors="coerce") if "date_reviewed" in rows.columns else None
+        best = {}
+        for pos, (idx, r) in enumerate(rows.iterrows()):
+            fit = str(r["fit_name"])
+            status = str(r["review_status"])
+            d = dates.loc[idx] if dates is not None else pd.NaT
+            key = (tier_rank[tier_of(status, fit)], status_rank.get(status, 99),
+                   0 if pd.isna(d) else -d.value,   # newest review first; undated rows after dated ones
+                   -pos)                             # then the later manifest row
+            if fit not in best or key < best[fit][0]:
+                best[fit] = (key, idx)
+        keep = [idx for _k, idx in best.values()]
+        return rows.loc[sorted(keep, key=lambda i: rows.index.get_loc(i))], len(rows) - len(keep)
+
     def select_fit(self, manifest_df, mode, class_dir):
         """Return (candidate, files, tried) for the first candidate whose files exist, else (None, None, tried).
 
