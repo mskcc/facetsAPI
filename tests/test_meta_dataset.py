@@ -113,7 +113,7 @@ class MetaDatasetTests(unittest.TestCase):
         self.assertEqual(m.fit_map[std["autoqc_only"][0]][0], "AutoQC_Best")
         self.assertEqual(m.fit_map[std["default_only"][0]][0], "Default")
         c = m.build_counts
-        self.assertEqual((c["Best"], c["Acceptable"], c["AutoQC_Best"], c["Default"]), (3, 1, 2, 2))
+        self.assertEqual((c["Best"], c["Acceptable"], c["AutoQC_Best"], c["Default"]), (2, 1, 3, 2))   # P-0000010: reviewed_best_fit by an auto-qc-script reviewer counts as autoQC
         self.assertEqual((c["not_found"], c["missing_manifest"], c["multi_normal"]), (1, 1, 1))
 
     def test_fit_dirs_resolve_from_discovered_dir_not_manifest_path(self):
@@ -145,9 +145,9 @@ class MetaDatasetTests(unittest.TestCase):
         self.assertIn(std["no_comment_acceptable"][0], m.master_file_dict)
         self.assertNotIn(std["autoqc_only"][0], m.master_file_dict)
         self.assertNotIn(std["default_only"][0], m.master_file_dict)
-        self.assertEqual(m.build_counts["no_fit_selected"], 4)   # autoqc-only, default-only, and both 2n research classes
+        self.assertEqual(m.build_counts["no_fit_selected"], 5)   # autoqc-only, default-only, the auto-reviewed one, and both 2n research classes
         m = self.meta(policy=FitPolicy.autoqc_only(), defaults=False)
-        self.assertEqual(sorted(k[0:9] for k in m.master_file_dict), ["P-0000002", "P-0000007"])
+        self.assertEqual(sorted(k[0:9] for k in m.master_file_dict), ["P-0000002", "P-0000007", "P-0000010"])
         m = self.meta(policy=FitPolicy.default_only(), defaults=True)
         self.assertNotIn(std["reviewed_best"][0] + "x", m.master_file_dict)
         self.assertEqual(m.master_file_dict[std["reviewed_best"][0]][MetaDictMap.FIT_STATUS], "not_reviewed#default#NA")
@@ -219,9 +219,25 @@ class MetaDatasetTests(unittest.TestCase):
         self.assertEqual(keys, [pair + "#alt_dipLogR_0.06", pair + "#default"])
         # the reviewed row wins over the later not_reviewed row for the same fit
         self.assertEqual(m.master_file_dict[pair + "#default"][MetaDictMap.FIT_STATUS], "reviewed_best_fit#default#richara4/auto-qc-script")
-        self.assertEqual(m.master_file_dict[pair + "#default"][MetaDictMap.FIT_TIER], "reviewed")
+        self.assertEqual(m.master_file_dict[pair + "#default"][MetaDictMap.FIT_TIER], "autoqc")   # auto-qc-script reviewer
+        self.assertEqual(m.fit_map[pair + "#default"][0], "AutoQC_Best")
         self.assertEqual(m.build_counts["duplicate_rows"], 1)
         self.assertEqual(m.build_counts["runs_registered"], len(m.master_file_dict))
+
+    def test_auto_reviewer_classification_on_meta(self):
+        tumor, pair = self.info["standard"]["duplicate_rows"]            # reviewed_best_fit by richara4/auto-qc-script
+        human_tumor = self.info["standard"]["reviewed_best"][0]          # reviewed_best_fit by alice
+        m = self.meta(policy=FitPolicy.reviewed_only(), defaults=False)
+        self.assertIn(human_tumor, m.master_file_dict)
+        self.assertNotIn(tumor, m.master_file_dict)
+        m = self.meta(policy=FitPolicy.autoqc_only(), defaults=False)
+        self.assertIn(tumor, m.master_file_dict)
+        self.assertNotIn(human_tumor, m.master_file_dict)
+        self.assertEqual(m.master_file_dict[tumor][MetaDictMap.FIT_STATUS], "reviewed_best_fit#default#richara4/auto-qc-script")
+        self.assertEqual(m.fit_map[tumor][0], "AutoQC_Best")
+        # a custom pattern can widen or narrow what counts as automated
+        m = self.meta(policy=FitPolicy.reviewed_only(auto_reviewer_pattern=r"^$"), defaults=False)
+        self.assertIn(tumor, m.master_file_dict)
 
     # ---- dataset -----------------------------------------------------------------------
     def test_dataset_single_run(self):

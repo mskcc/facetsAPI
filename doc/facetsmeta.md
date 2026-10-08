@@ -69,11 +69,17 @@ qc / gene-level files, so they load only when those exist).
 
 Single-run mode picks one fit per sample (per class for 2n) from the manifest, in tiers:
 
-| tier | manifest `review_status` | meaning |
-|---|---|---|
-| `reviewed` | `reviewed_best_fit` then `reviewed_acceptable_fit` | a human reviewer chose the fit |
-| `autoqc` | `auto_qc_best_fit` then `auto_qc_pass` | the autoQC ruleset chose the fit |
-| `default` | any status, `fit_name == "default"` | facets' own first fit |
+| tier | manifest `review_status` | `reviewed_by` | meaning |
+|---|---|---|---|
+| `reviewed` | `reviewed_best_fit` then `reviewed_acceptable_fit` | a human username | a person chose the fit |
+| `autoqc` | `auto_qc_best_fit` then `auto_qc_pass` | anything | the current autoQC chose the fit |
+| `autoqc` | `reviewed_best_fit` then `reviewed_acceptable_fit` | matches `auto[-_]?qc` (`auto-qc-script`, `richara4/auto-qc-script`, ...) | the legacy autoQC chose the fit |
+| `default` | any status, `fit_name == "default"` | | facets' own first fit |
+
+A row's tier depends on **both** its status and its reviewer: in the standard repository most `reviewed_best_fit` rows
+were written by the 2022 autoQC under reviewer names ending in `auto-qc-script`, and those count as autoQC, not as human
+review. `FitPolicy.reviewed_only()` therefore returns only fits a person signed off, and `FitPolicy.autoqc_only()` returns
+both current and legacy automated calls. The reviewer regex is `FitPolicy.auto_reviewer_pattern` if it ever needs changing.
 
 The default policy is `FitPolicy(("reviewed", "autoqc", "default"))`. Selection **falls through**: the first candidate whose files
 exist for the requested purity/hisens mode wins, so a sample whose only autoQC row is an ultra fit still gets its default fit in purity mode.

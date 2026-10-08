@@ -614,8 +614,8 @@ class FacetsMeta:
                 counts["missing_files"] += 1
                 self._vprint("\t\tSkipping fit %s of %s (%s): missing %s." % (fit_name, id_with_normal, fc.name, missing))
                 continue
-            cand = FitCandidate(fit_name, status, str(row["reviewed_by"]), tier_of(status, fit_name),
-                                label_of(status, fit_name), int(idx))
+            tier, _rank, label = self.fit_policy.classify(status, fit_name, row["reviewed_by"])
+            cand = FitCandidate(fit_name, status, str(row["reviewed_by"]), tier, label, int(idx))
             fit_label = fit_name if not fc.is_2n else fc.name + "/" + fit_name
             long_id = id_with_normal + "#" + fit_label
             self.long_id_map.setdefault(id, []).append(long_id)

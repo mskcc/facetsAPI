@@ -10,7 +10,7 @@ from make_fixture_repo import build  # noqa: E402
 
 from facetsAPI.exceptions import FacetsConfigError  # noqa: E402
 from facetsAPI.layout import read_manifest  # noqa: E402
-from facetsAPI.fitpolicy import FitPolicy, tier_of, label_of  # noqa: E402
+from facetsAPI.fitpolicy import FitPolicy, tier_of, label_of, classify, is_auto_reviewer  # noqa: E402
 
 
 class FitPolicyTests(unittest.TestCase):
@@ -126,6 +126,33 @@ class FitPolicyTests(unittest.TestCase):
         self.assertEqual(list(rows["fit_name"]), ["default", "alt", "refit"])
         self.assertEqual(rows.loc[rows["fit_name"] == "default", "review_status"].iloc[0], "reviewed_best_fit")
         self.assertEqual(rows.loc[rows["fit_name"] == "refit", "reviewed_by"].iloc[0], "bob")   # newest review wins
+
+    def test_auto_reviewer_classification(self):
+        for who in ("auto-qc", "auto-qc-script", "richara4/auto-qc-script", "bandlamc/auto-qc-script", "AUTO_QC", "auto_qc_v2"):
+            self.assertTrue(is_auto_reviewer(who), who)
+            self.assertEqual(classify("reviewed_best_fit", "x", who), ("autoqc", 0, "AutoQC_Best"))
+            self.assertEqual(classify("reviewed_acceptable_fit", "x", who), ("autoqc", 1, "AutoQC_Pass"))
+        for who in ("smiths5", "bandlamc", "pricea2", "NA", "", None):
+            self.assertFalse(is_auto_reviewer(who), who)
+            self.assertEqual(classify("reviewed_best_fit", "x", who), ("reviewed", 0, "Best"))
+        self.assertEqual(classify("auto_qc_pass", "default", "auto-qc"), ("autoqc", 1, "AutoQC_Pass"))
+        self.assertEqual(classify("not_reviewed", "default", "NA"), ("default", 0, "Default"))
+        self.assertEqual(tier_of("reviewed_best_fit", "x", "richara4/auto-qc-script"), "autoqc")
+        self.assertEqual(label_of("reviewed_best_fit", "x", "smiths5"), "Best")
+        with self.assertRaises(FacetsConfigError):
+            FitPolicy(auto_reviewer_pattern="(")
+        df = pd.DataFrame({
+            "path": ["/p/"] * 4, "fit_name": ["refit_a", "default", "alt", "refit_b"],
+            "review_status": ["reviewed_best_fit", "not_reviewed", "reviewed_best_fit", "reviewed_acceptable_fit"],
+            "reviewed_by": ["richara4/auto-qc-script", "NA", "pricea2", "auto-qc-script"],
+            "date_reviewed": ["2022-12-15 02:03:19", "NA", "2024-03-03 00:00:00", "2023-01-01 00:00:00"],
+        })
+        self.assertEqual([(c.fit_name, c.tier, c.label) for c in FitPolicy().candidates(df)],
+                         [("alt", "reviewed", "Best"), ("refit_a", "autoqc", "AutoQC_Best"), ("refit_b", "autoqc", "AutoQC_Pass"),
+                          ("default", "default", "Default")])
+        self.assertEqual([c.fit_name for c in FitPolicy.reviewed_only().candidates(df)], ["alt"])
+        self.assertEqual([c.fit_name for c in FitPolicy.autoqc_only().candidates(df)], ["refit_a", "refit_b"])
+        self.assertEqual([c.fit_name for c in FitPolicy.autoqc_only(auto_reviewer_pattern="pricea2").candidates(df)], ["alt"])
 
     def test_newest_reviewed_tie_break(self):
         df = pd.DataFrame({
