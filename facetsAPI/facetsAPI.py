@@ -15,11 +15,20 @@ import pickle
 import statistics
 from datetime import datetime
 from datetime import date
-import matplotlib
-if not os.environ.get("MPLBACKEND") and not os.environ.get("DISPLAY") and sys.platform.startswith("linux"):
-    matplotlib.use("Agg")  # headless (cluster / container) default; MPLBACKEND still wins
-import matplotlib.pyplot as plt
 import traceback
+
+
+def _pyplot():
+    """matplotlib is only needed by FacetsDataset.createHistogram(); import it lazily so the package
+    imports on systems without it (e.g. a bare cluster python)."""
+    try:
+        import matplotlib
+    except ImportError as e:
+        raise FacetsConfigError("createHistogram() needs matplotlib: pip install matplotlib") from e
+    if not os.environ.get("MPLBACKEND") and not os.environ.get("DISPLAY") and sys.platform.startswith("linux"):
+        matplotlib.use("Agg")  # headless (cluster / container) default; MPLBACKEND still wins
+    import matplotlib.pyplot as plt
+    return plt
 
 from .exceptions import (FacetsAPIError, FacetsConfigError, FacetsRepositoryError,
                          ManifestError, ParseError, ExternalToolError)
@@ -969,6 +978,7 @@ class FacetsDataset:
         datestr = str(date.isoformat(sep="_", timespec='minutes')).replace(":", "-")
         os.makedirs(outdir, exist_ok=True)
         out_path = os.path.join(outdir, 'FacetsDataset_histogram_{var}_{datetim}.png'.format(var=variable, datetim=datestr))
+        plt = _pyplot()
 
         if variable in FacetsDataset.NUMERIC_HISTOGRAM_VARIABLES:
             variableli = [v for v in (_to_float(getattr(run, attr, None)) for run in self.runList) if v is not None]
