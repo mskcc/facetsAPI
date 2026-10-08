@@ -17,8 +17,9 @@ Precedence: explicit constructor argument > environment variable > default.
     FACETSAPI_R_PREFIX, FACETSAPI_RSCRIPT, FACETSAPI_FP_WRAPPER, FACETSAPI_FP_CONFIG,
     FACETSAPI_R_LIB_LOC, FACETSAPI_ASCETS_DIR
 
-Every R call is composed into ONE command string and run with ``bash -lc`` so the prefix and
-Rscript share an environment. (The old ``os.system("module load ...")`` ran in its own throwaway
+Every R call is composed into ONE command string (``<prefix> ; Rscript ...``) and run with
+``bash -lc`` so the prefix and Rscript share an environment. The prefix's exit status is ignored
+because Lmod reports warnings with a nonzero status; the call's status is Rscript's own. (The old ``os.system("module load ...")`` ran in its own throwaway
 shell and never affected the following Rscript call.)
 """
 
@@ -78,7 +79,9 @@ class FacetsConfig:
             raise FacetsConfigError("FacetsConfig.rscript is empty.")
         cmd = " ".join(shlex.quote(str(a)) for a in [self.rscript] + list(args))
         if self.r_prefix and self.r_prefix.strip():
-            cmd = self.r_prefix.strip() + " && " + cmd
+            # ';' not '&&': Lmod returns nonzero for mere warnings (e.g. an unloaded dependent module), which
+            # must not block Rscript. If the prefix really failed, Rscript is not found and that error is clear.
+            cmd = self.r_prefix.strip().rstrip(";") + " ; " + cmd
         return cmd
 
     def run_r(self, args, cwd=None, check=True):

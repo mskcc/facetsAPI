@@ -46,7 +46,7 @@ class FacetsConfigTests(unittest.TestCase):
         c = FacetsConfig()
         self.assertEqual(c.compose_r_command(["/a/b.R", "-i", "x y"]), "Rscript /a/b.R -i 'x y'")
         c = FacetsConfig(r_prefix=IRIS_PREFIX, rscript="Rscript")
-        self.assertEqual(c.compose_r_command(["/a/b.R"]), IRIS_PREFIX + " && Rscript /a/b.R")
+        self.assertEqual(c.compose_r_command(["/a/b.R"]), IRIS_PREFIX + " ; Rscript /a/b.R")
         with self.assertRaises(FacetsConfigError):
             FacetsConfig(rscript="").compose_r_command(["x"])
 
@@ -57,7 +57,7 @@ class FacetsConfigTests(unittest.TestCase):
             self.assertEqual(res.stdout, "ok")
             argv = run.call_args[0][0]
             self.assertEqual(argv[0:2], ["bash", "-lc"])
-            self.assertEqual(argv[2], IRIS_PREFIX + " && Rscript /w.R a")
+            self.assertEqual(argv[2], IRIS_PREFIX + " ; Rscript /w.R a")
             self.assertTrue(run.call_args[1]["capture_output"])
         with mock.patch("facetsAPI.config.subprocess.run", return_value=completed(2, "", "Error in library(facetsPreview)")):
             with self.assertRaises(ExternalToolError) as cm:
@@ -116,7 +116,7 @@ class ToolsTests(unittest.TestCase):
             prefix = tools.runAscets(out_dir, ref_genome_coords="hg19", min_arm_breadth=0.5, keep_noise=False,
                                      arm_alt_frac_thresh=0.7, use_adjusted=False)
         cmd = run.call_args[0][0][2]
-        self.assertTrue(cmd.startswith(IRIS_PREFIX + " && Rscript "))
+        self.assertTrue(cmd.startswith(IRIS_PREFIX + " ; Rscript "))
         self.assertIn("run_ascets.R -i " + os.path.join(out_dir, "merged_seg_data.seg"), cmd)
         self.assertIn("genomic_arm_coordinates_hg19.txt -m 0.5 -k F -a 0.7 -o FacetsAscetsRun_hg19_breadth0.5_filterNoise_armAltFracThresh0.7_facetsUnadjustedSeg_", cmd)
         self.assertTrue(prefix.startswith("FacetsAscetsRun_hg19"))
@@ -138,7 +138,7 @@ class ToolsTests(unittest.TestCase):
                 contextlib.redirect_stdout(io.StringIO()):
             fp.runGenerateGenomicAnnotations("P-0000001-T01-IM6", "P-0000001-T01-IM6_P-0000001-N01-IM6", "/s/path")
         cmd = run.call_args[0][0][2]
-        self.assertTrue(cmd.startswith(IRIS_PREFIX + " && Rscript "))
+        self.assertTrue(cmd.startswith(IRIS_PREFIX + " ; Rscript "))
         self.assertTrue(cmd.endswith("fp_generate_genomic_anno_wrapper.R /cfg/facets_preview.json P-0000001-T01-IM6 "
                                      "P-0000001-T01-IM6_P-0000001-N01-IM6 /s/path /m/cbio.maf /m/cbio.nonsigned.maf /R_libs"), cmd)
         with mock.patch.dict(os.environ, {"FACETSAPI_FP_CONFIG": "/env/cfg.json"}):

@@ -20,7 +20,7 @@ from facetsAPI import FacetsConfig, ExtTools
 cfg = FacetsConfig.from_env()                                   # env vars + defaults
 cfg = FacetsConfig.from_env(rscript="/opt/R/4.4.1/bin/Rscript")  # explicit override wins
 print(cfg.compose_r_command(["/x/run_ascets.R", "-i", "merged.seg"]))
-# module use /admin/software/spack/spack_modulefiles/Core/ && module load r/3.6.3 && Rscript /x/run_ascets.R -i merged.seg
+# module use /admin/software/spack/spack_modulefiles/Core/ && module load r/3.6.3 ; Rscript /x/run_ascets.R -i merged.seg
 ```
 
 Every R call is composed into one string and executed with `bash -lc`, so the prefix and `Rscript` share an
