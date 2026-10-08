@@ -43,6 +43,12 @@ def run(repo, prefix, n, fit_class):
         mode = "single-run" if single else "all-fits"
         print("%s | %s | fit_class=%s | ids=%d runs=%d samples=%d" % (repo, mode, fit_class, len(ids), len(ds.runList), len(ds.sampleList)))
         print("   counts:", {k: v for k, v in meta.build_counts.items() if v})
+        if ds.num_file_failed or ds.num_build_failed:
+            print("   dataset skipped: %d file-format failures, %d build failures; failed keys: %s"
+                  % (ds.num_file_failed, ds.num_build_failed, meta.failed_samples))
+            for line in buf.getvalue().splitlines():
+                if "Warning" in line:
+                    print("   ", line.strip())
         for key, entry in list(meta.master_file_dict.items())[:6]:
             print("   key shape:", "#" in key, "| class:", entry[MetaDictMap.FIT_CLASS], "| tier:", entry[MetaDictMap.FIT_TIER],
                   "| fit dir under repo:", entry[MetaDictMap.SELECTED_FIT_DIR].startswith(repo.rstrip("/")))
