@@ -56,9 +56,22 @@ class ScriptTests(unittest.TestCase):
 
     def test_cin_scores_cli(self):
         cin = load("cin_scores")
+        out = os.path.join(self.tmp.name, "cin_arm.tsv")
+        argv = ["--facets-dir", self.info["repo"], "--sample", self.samples[0], "--cin-level", "arm", "-o", out]
+        with contextlib.redirect_stdout(io.StringIO()):
+            results = cin.main(argv)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["cinLevel"], "arm")
+        rows = open(out).read().splitlines()
+        self.assertIn("arm", rows[0].split("\t"))
+        self.assertGreater(len(rows), 2)
+
+    def test_chromothripsis_scores_cli(self):
+        sys.path.insert(0, SCRIPTS)
+        cin = load("chromothripsis_scores")
         self.assertEqual(cin.arm_sort_key("2q"), (2, 1))
         self.assertEqual(cin.arm_sort_key("Xp"), (23, 0))
-        prefix = os.path.join(self.tmp.name, "cin")
+        prefix = os.path.join(self.tmp.name, "chromo")
         argv = ["--facets-dir", self.info["repo"], "--clinical-sample-file", self.info["clinical_file"],
                 "--sample", self.samples[0], "--sample", self.samples[1], "-o", prefix]
         with contextlib.redirect_stdout(io.StringIO()):
