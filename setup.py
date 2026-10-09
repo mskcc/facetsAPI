@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name='facetsAPI',
-    version='0.6.0',
+    version='2.0.0',
     author='Adam Price',
     author_email='pricea2@mskcc.org',
     description='Toolkit for interacting and manipulating Impact FACETS data at MSK.',

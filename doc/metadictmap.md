@@ -19,8 +19,8 @@ MANIFEST_FILE = 10
 FIT_STATUS = 11          # "review_status#fit_name#reviewed_by"
 SAMPLE_BASE_DIR = 12     # the directory holding the manifest: the sample dir (standard) or the class dir (2n)
 RDATA_FILE = 13          # "" when the fit has no .Rdata
-FIT_CLASS = 14           # "standard" | "clinical" | "research"           (added in 0.6.0)
-FIT_TIER = 15            # "reviewed" | "autoqc" | "default" | "unreviewed" (added in 0.6.0)
+FIT_CLASS = 14           # "standard" | "clinical" | "research"           (added in 2.0.0)
+FIT_TIER = 15            # "reviewed" | "autoqc" | "default" | "unreviewed" (added in 2.0.0)
 ```
 
 `FIT_TIER` is the tier the fit was selected under in single-run mode (see [fit selection](facetsmeta.md#fit-selection-policy)),

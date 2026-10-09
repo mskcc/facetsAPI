@@ -4,7 +4,7 @@
 undetermined lcn (NA in facets output). Entries where lcn is impossible for the
 given tcn (lcn > tcn/2) are deliberately absent.
 
-Historical note: the table shipped before 0.6.0 was keyed on major-cn-shaped
+Historical note: the table shipped before 2.0.0 was keyed on major-cn-shaped
 values (e.g. ``(False, 1, 1)`` for HETLOSS) while the lookup passed lcn, so most
 real segments resolved to ``None``. This module carries the corrected table.
 """

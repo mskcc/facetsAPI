@@ -23,4 +23,4 @@ R calls run **inline** (no job scheduler). Wrap your script in `sbatch`, a Nextf
 * runFacets()
   * Not implemented (raises `NotImplementedError`). FACETS runs are produced by the IMPACT FACETS pipeline, which this API only reads.
 
-`loadModule()` was removed in 0.6.0: `os.system("module load ...")` ran in a throwaway shell and never affected the later `Rscript` call. Use `FacetsConfig.r_prefix` instead.
+`loadModule()` was removed in 2.0.0: `os.system("module load ...")` ran in a throwaway shell and never affected the later `Rscript` call. Use `FacetsConfig.r_prefix` instead.

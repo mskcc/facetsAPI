@@ -1,4 +1,4 @@
-__version__ = "0.6.0"
+__version__ = "2.0.0"
 
 from facetsAPI.facetsAPI import FacetsMeta
 from facetsAPI.facetsAPI import FacetsSegment

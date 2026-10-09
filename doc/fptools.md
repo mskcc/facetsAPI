@@ -27,4 +27,4 @@ fp_tools = FPTools(fp_config, cbio_maf, cbio_nonsigned_maf,
 * backupFacetsQC(ref_meta)
   * This function will make backup files of existing facets qc files for every sample in the provided FacetsMeta object with a date stamped file name. Returns the number of files backed up.
 
-`loadModule()` was removed in 0.6.0 (see [ExtTools](exttools.md)).
+`loadModule()` was removed in 2.0.0 (see [ExtTools](exttools.md)).

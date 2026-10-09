@@ -362,7 +362,7 @@ class FacetsMeta:
         self.fit_policy              = fit_policy if fit_policy is not None else FitPolicy()
         self._fit_policy_explicit    = fit_policy is not None
 
-        #Per-instance run state. (Before 0.6.0 these were class attributes shared by every FacetsMeta.)
+        #Per-instance run state. (Before 2.0.0 these were class attributes shared by every FacetsMeta.)
         self.selectSingleRun         = False
         self.use_unreviewed_defaults = False
         self.run_verbose             = False
@@ -2624,7 +2624,7 @@ class FacetsRun:
                 fit_name = parts[1]
         rows = qc_df.loc[names == fit_name] if fit_name else qc_df.iloc[0:0]
         if rows.empty:
-            #Fall back to the fit directory's basename (pre-0.6 behavior).
+            #Fall back to the fit directory's basename (pre-2.0 behavior).
             base = os.path.basename(os.path.dirname(str(sample_dir_map[MetaDictMap.OUT_FILE])))
             rows = qc_df.loc[names == base]
         if rows.empty:

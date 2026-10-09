@@ -31,10 +31,18 @@ FacetsAPI provides a framework for interacting with this FACETS data, allowing u
 FACETS files contain a variety of files detailing segments, copy number alteration, QC, gene level data, and a variety of other useful information.  FacetsAPI structures this data into an object-oriented set of classes that work holistically to provide a structured way to work with the data.  
 
 
-# What changed in 0.6.0
+# Analysis scripts
+
+`scripts/` holds ready-to-run analyses built on the API; each prints `--help`:
+
+* `cin_scores.py --facets-dir ... --samples-file ... -o prefix` — copy-number instability scores genome-wide and per arm, plus candidate-arm flags (breakpoints, relative instability, CF oscillation).
+* `get_state_percents.py --facets-dir ... --samples-file ... -o out.tsv` — percent of the genome in HETLOSS and HOMDEL per sample.
+* `integrity.py`, `hypoploidy.py`, `aneuploidy_ascets.py`, `make_report.py`, ... — see each file's header.
+
+# What changed in 2.0.0
 
 * **2n repositories are supported.** Pairs with `clinical/` and `research/` fit sets are detected automatically; `FacetsMeta(..., fit_class="clinical"|"research"|"both")` chooses what to load (default `research`). Standard repositories are unaffected. See [FacetsMeta](doc/facetsmeta.md).
-* **Fit selection is tiered and configurable.** Human-reviewed fits first, then autoQC fits (`auto_qc_best_fit`, `auto_qc_pass`, previously ignored, plus `reviewed_best_fit` rows whose reviewer is an `auto-qc` script), then the default fit; `FitPolicy.reviewed_only()` / `autoqc_only()` / `default_only()` restrict to one tier. `setSingleRunPerSample(True, allowDefaults)` keeps working and maps onto the policy. To reproduce the pre-0.6 selection exactly use `FitPolicy.reviewed_only()` with `allowDefaults`.
+* **Fit selection is tiered and configurable.** Human-reviewed fits first, then autoQC fits (`auto_qc_best_fit`, `auto_qc_pass`, previously ignored, plus `reviewed_best_fit` rows whose reviewer is an `auto-qc` script), then the default fit; `FitPolicy.reviewed_only()` / `autoqc_only()` / `default_only()` restrict to one tier. `setSingleRunPerSample(True, allowDefaults)` keeps working and maps onto the policy. To reproduce the pre-2.0 selection exactly use `FitPolicy.reviewed_only()` with `allowDefaults`.
 * **Fit directories are resolved from the discovered sample directory**, not from the absolute `path` recorded inside `facets_review.manifest`. The repository can be mounted at any path (containers, laptops). Manifests with or without the leading `#` comment line are accepted.
 * **Errors are exceptions, not `sys.exit()`.** All derive from `FacetsAPIError`; see [Configuration](doc/configuration.md#exceptions). Scripts that relied on a silent exit now see a traceback.
 * **Copy-number calls are correct.** `FacetsRun.get_cn_call(tcn, lcn)` used a table keyed on major copy number; it is now keyed on lesser copy number and returns real calls (it mostly returned `None` before).
