@@ -120,6 +120,9 @@ if __name__ == '__main__':
     test_dataset = FacetsDataset(prepared_metadata)
     test_dataset.buildFacetsDataset()
     test_dataset.writeReport("/path/to/report.txt")
+
+    # Gene-level tcn/lcn/cf (.em, hisens gene_level.txt) for selected genes; omit the list for all genes.
+    test_dataset.writeGeneLevelReport("/path/to/gene_level_report.txt", ["TP53"])
 ```
 
 #### Produce genomic annotation for Facets Samples that are missing genomic annotation files.

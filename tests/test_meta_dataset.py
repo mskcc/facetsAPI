@@ -303,6 +303,16 @@ class MetaDatasetTests(unittest.TestCase):
         lines = open(os.path.join(out, "report.tsv")).read().splitlines()
         self.assertEqual(len(lines), 1 + len(ds.runList))
         self.assertIn("AutoQC_Best", "\n".join(lines))
+        n = quiet(ds.writeGeneLevelReport, os.path.join(out, "genes.tsv"), "TP53")
+        rows = [ln.split("\t") for ln in open(os.path.join(out, "genes.tsv")).read().splitlines()]
+        self.assertEqual(n, len(ds.runList))
+        self.assertEqual(len(rows), 1 + len(ds.runList))
+        for r in rows[1:]:
+            rec = dict(zip(rows[0], r))
+            self.assertEqual((rec["gene"], rec["tcn"], rec["lcn"], rec["cn_state"]), ("TP53", "1", "0", "HETLOSS"))
+            self.assertNotEqual(rec["fitType"], "NA")
+        n_all = quiet(ds.writeGeneLevelReport, os.path.join(out, "all_genes.tsv"))
+        self.assertEqual(n_all, sum(len(r.genes) for r in ds.runList))
         ds.writePurityCFs(os.path.join(out, "cf.tsv"))
         self.assertEqual(len(open(os.path.join(out, "cf.tsv")).read().splitlines()), 1 + len(ds.runList))
         ds.writeDatasetSummary(outdir=out)
@@ -326,6 +336,25 @@ class MetaDatasetTests(unittest.TestCase):
         self.assertEqual(sorted(m.master_file_dict), sorted([tumor, self.info["twon"]["full"][0]]))
         with self.assertRaises(FacetsRepositoryError):
             m.selectSamplesFromFile(os.path.join(self.tmp.name, "nope.lst"))
+
+    def test_sample_list_bom_and_unmatched_ids(self):
+        tumor = self.info["standard"]["reviewed_best"][0]
+        absent = "P-0000099-T01-IM6"   # in neither the clinical file nor the repository
+        lst = os.path.join(self.tmp.name, "samples_bom.lst")
+        with open(lst, "w", encoding="utf-8-sig") as fh:   # leading BOM, as Excel writes
+            fh.write("%s\n%s\n" % (tumor, absent))
+        m = FacetsMeta(self.clin, self.repo, "purity")
+        m.setSingleRunPerSample(True, True)
+        m.selectSamplesFromFile(lst)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            m.buildFacetsMeta()
+        self.assertEqual(list(m.master_file_dict), [tumor])
+        self.assertEqual(m.unmatched_sample_ids, [absent])
+        self.assertEqual(m.build_counts["not_in_target_ids"], 1)
+        log = buf.getvalue()
+        self.assertIn("1 ids from the sample list are not in the clinical sample file: " + absent, log)
+        self.assertNotIn("2n", log)   # standard-only build: no 2n wording
 
     def test_persistence_roundtrip_and_old_format_warning(self):
         store = os.path.join(self.tmp.name, "meta.dat")

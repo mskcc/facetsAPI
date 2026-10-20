@@ -51,6 +51,8 @@ Filters that need clinical data (cancer type, detail, clinical purity, onko code
   * This function will write alteration data for all samples in the FacetsDataset to the specified outfile_path.  This includes arm level gain/loss calls, CF levels, and run-level calls.
 * writeReport(outfile_name)
   * Writes one row per run: ID, fitDir, fitType (`Best`, `Acceptable`, `AutoQC_Best`, `AutoQC_Pass`, `Default`, `Unreviewed`), clinical and FACETS metrics.
+* writeGeneLevelReport(outfile_path, target_genes=None)
+  * Writes one row per run and gene from each fit's gene_level.txt: sample, fitType, fit_name, review_status, fit_class, then every [FacetsGene](facetsgene.md) field. `target_genes` is a symbol or list (e.g. `["TP53"]`); `None` writes all genes. `cf`/`tcn`/`lcn` are the `.em` values. facets-suite computes gene_level.txt from the **hisens** run, so these are hisens values even in a purity-mode dataset. Returns the number of rows written.
 * writePurityCFs(outfile_path, use_base_cf=False, use_long_id=True)
   * This function will calculate and write calculated purity data for each sample.  Purity is defined as the greatest CF value that is not NA or 1. If use_base_cf is true, cf will be used rather than cf.em.  If use_long_id is True, the pair id including the paired normal is written instead of the run key.
 * printFacetsSampleById(id)

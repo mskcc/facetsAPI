@@ -369,6 +369,7 @@ class FacetsMeta:
         self.failed_samples          = []
         self.build_from_file_listing = False
         self.build_counts            = {}   # counters from the last parseClinicalSample()
+        self.unmatched_sample_ids    = []   # selectSamplesFromFile() ids that matched nothing in the last build
         self._persist_version        = FacetsMeta.PERSIST_VERSION
 
         self.hasClinicalMeta = bool(self.clinical_sample_file)
@@ -501,7 +502,9 @@ class FacetsMeta:
     #Entries may be tumor sample ids (P-0000001-T01-IM6) or full pair ids; blank and '#' lines are ignored.
     def selectSamplesFromFile(self, infile):
         try:
-            with open(infile) as fp:
+            #utf-8-sig drops a byte-order mark (files saved from Excel/Windows), which strip() keeps and which
+            #would otherwise make the first id unmatchable.
+            with open(infile, encoding="utf-8-sig") as fp:
                 for line in fp:
                     entry = line.strip()
                     if entry and not entry.startswith("#"):
@@ -547,7 +550,7 @@ class FacetsMeta:
     ######################
     COUNTER_KEYS = ("samples_considered", "not_found", "multi_normal", "missing_manifest", "missing_class",
                     "bad_manifest", "no_fit_selected", "missing_files", "skipped_ultra", "skipped_not_selected", "duplicate_rows",
-                    "standard_samples", "twon_samples", "runs_registered",
+                    "standard_samples", "twon_samples", "runs_registered", "not_in_target_ids",
                     "Best", "Acceptable", "AutoQC_Best", "AutoQC_Pass", "Default", "Unreviewed")
     CLINICAL_REQUIRED_COLUMNS = ("SAMPLE_ID", "PATIENT_ID", "CANCER_TYPE", "CANCER_TYPE_DETAILED", "TUMOR_PURITY",
                                  "ONCOTREE_CODE", "CVR_TMB_SCORE", "MSI_SCORE")
@@ -674,16 +677,18 @@ class FacetsMeta:
             print("\t\tBuilding directory map targeting one run per sample (policy tiers: %s)." % " > ".join(self.fit_policy.tiers))
         else:
             print("\t\tBuilding directory map including all runs for each sample.")
-        print("\t\tReading %s runs; 2n fit class: %s." % (self.hisens_vs_purity, self.fit_class))
+        print("\t\tReading %s runs." % self.hisens_vs_purity)
 
         sample_filter = None
         if self.build_from_file_listing:
             sample_filter = self._sampleFilterSet()
             print("\t\tSelecting samples only from the provided input sample list (%d ids)." % len(sample_filter))
 
+        seen_tumor_ids = set()
         for id in target_ids:
             id = str(id)
             cur_tumor_id = id[0:17]
+            seen_tumor_ids.add(cur_tumor_id)
 
             #If we are parsing data from a file, only include the samples we've already read in.
             if sample_filter is not None and cur_tumor_id not in sample_filter:
@@ -742,11 +747,27 @@ class FacetsMeta:
             print("\t\t" + str(counts["no_fit_selected"]) + " samples had no fit matching the policy.")
         else:
             print("\tSelecting all FacetsRuns for each FacetsSample.")
-        print("\tLayouts: %d standard samples, %d 2n pairs (fit_class=%s)."
-              % (counts["standard_samples"], counts["twon_samples"], self.fit_class))
+        #2n wording only when the build actually met 2n pairs; fit_class has no effect on standard samples.
+        if counts["twon_samples"]:
+            print("\tLayouts: %d standard samples, %d 2n pairs (fit_class=%s)."
+                  % (counts["standard_samples"], counts["twon_samples"], self.fit_class))
+        else:
+            print("\tLayouts: %d standard samples." % counts["standard_samples"])
         print("\tIdentified " + str(counts["multi_normal"]) + " instances of tumor having multiple normals.")
-        print("\tSkipped %d ids with no directory, %d samples with no manifest, %d 2n pairs missing the requested class, %d unreadable manifests."
-              % (counts["not_found"], counts["missing_manifest"], counts["missing_class"], counts["bad_manifest"]))
+        if counts["twon_samples"]:
+            print("\tSkipped %d ids with no directory, %d samples with no manifest, %d 2n pairs missing the requested class, %d unreadable manifests."
+                  % (counts["not_found"], counts["missing_manifest"], counts["missing_class"], counts["bad_manifest"]))
+        else:
+            print("\tSkipped %d ids with no directory, %d samples with no manifest, %d unreadable manifests."
+                  % (counts["not_found"], counts["missing_manifest"], counts["bad_manifest"]))
+        #Sample-list ids that matched no clinical-file row (or repository folder) are otherwise counted nowhere.
+        self.unmatched_sample_ids = sorted(sample_filter - seen_tumor_ids) if sample_filter is not None else []
+        counts["not_in_target_ids"] = len(self.unmatched_sample_ids)
+        if self.unmatched_sample_ids:
+            source = "clinical sample file" if self.clinical_sample_file else "FACETS repository"
+            print(bcolors.WARNING + "\t%d ids from the sample list are not in the %s: %s%s" % (
+                len(self.unmatched_sample_ids), source, ", ".join(self.unmatched_sample_ids[0:10]),
+                " ..." if len(self.unmatched_sample_ids) > 10 else "") + bcolors.ENDC)
         print("\tSkipped " + str(counts["missing_files"]) + " fits due to missing files.")
         if counts["skipped_ultra"]:
             print("\tExcluded " + str(counts["skipped_ultra"]) + " ultra fits (FitPolicy.include_ultra_fits is False).")
@@ -859,6 +880,47 @@ class FacetsDataset:
                 else:
                     outfile.write(str(cur_run.msi) + "\t")
                 outfile.write("\n")
+
+    #Columns of writeGeneLevelReport(), after the run columns: the FacetsGene attributes, in gene_level.txt order.
+    GENE_LEVEL_FIELDS = ("gene", "chrom", "gene_start", "gene_end", "seg_start", "seg_end", "seg_length", "cf", "tcn",
+                         "lcn", "cn_state", "filter", "tsg", "seg", "median_cnlr_seg", "segclust", "mcn",
+                         "genes_on_seg", "gene_snps", "gene_het_snps", "spans_segs")
+
+    #This function writes gene-level copy number for every run in the dataset to outfile_path, one row per run and gene.
+    #target_genes is a gene symbol or list of symbols (e.g. ["TP53"]); None writes every gene.
+    #Values are the fit's gene_level.txt as written, which facets-suite computes from the HISENS run, so they are
+    #hisens values whether this dataset was built in purity or hisens mode (cf/tcn/lcn are the .em columns).
+    #Returns the number of rows written.
+    def writeGeneLevelReport(self, outfile_path, target_genes=None):
+        if isinstance(target_genes, str):
+            target_genes = [target_genes]
+        targets = None if target_genes is None else set(target_genes)
+        print("\t\t\tWriting gene level report to: " + outfile_path)
+
+        fit_map  = self.ref_facetsMeta.fit_map
+        num_rows = 0
+        found    = set()
+        with open(outfile_path, 'w') as outfile:
+            outfile.write("\t".join(("sample", "fitType", "fit_name", "review_status", "fit_class") + FacetsDataset.GENE_LEVEL_FIELDS) + "\n")
+            for cur_run in self.runList:
+                cur_fit_item = fit_map.get(cur_run.id) or fit_map.get(short_sample_id(cur_run.id))
+                run_values   = [cur_run.id, cur_fit_item[0] if cur_fit_item else None, cur_run.fit_name,
+                                cur_run.review_status, cur_run.fit_class]
+                for cur_gene in cur_run.genes:
+                    if targets is not None and cur_gene.gene not in targets:
+                        continue
+                    found.add((cur_run.id, cur_gene.gene))
+                    values = run_values + [getattr(cur_gene, f) for f in FacetsDataset.GENE_LEVEL_FIELDS]
+                    outfile.write("\t".join("NA" if pd.isna(v) else str(v)
+                                            for v in values) + "\n")
+                    num_rows += 1
+
+        if targets is not None:
+            num_absent = len(self.runList) * len(targets) - len(found)
+            if num_absent:
+                print(bcolors.WARNING + "\t\t\tWarning: " + str(num_absent) + " run/gene pairs had no row in gene_level.txt." + bcolors.ENDC)
+        return num_rows
+
     #This function will make backup copies (<file>.<date>.bak) of the ccf.maf file of every run in the provided FacetsMeta object.
     def backupMafs(self, ref_meta):
         if not isinstance(ref_meta, FacetsMeta):

@@ -38,6 +38,7 @@ FACETS files contain a variety of files detailing segments, copy number alterati
 * `cin_scores.py --facets-dir ... --samples-file ... --cin-level full|chrom|arm -o out.tsv` — copy-number instability (CIN) scores at genome, chromosome or arm resolution.
 * `chromothripsis_scores.py --facets-dir ... --samples-file ... -o prefix` — chromothripsis candidate arms: per-arm CIN relative to the genome, breakpoints and CF oscillation, written beside the CIN tables.
 * `get_state_percents.py --facets-dir ... --samples-file ... -o out.tsv` — percent of the genome in HETLOSS and HOMDEL per sample.
+* `gene_level_report.py` — edit the paths at the top: `writeReport()` plus `writeGeneLevelReport()` (TP53 by default) for a list of sample ids.
 * `integrity.py`, `hypoploidy.py`, `aneuploidy_ascets.py`, `make_report.py`, ... — see each file's header.
 
 # What changed in 2.0.0
