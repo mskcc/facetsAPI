@@ -1,3 +1,5 @@
+import copy
+import math
 import sys
 import os
 from collections import defaultdict, Counter
@@ -76,12 +78,42 @@ def calculate_cin(target_sample_ids,
     ds = FacetsDataset(meta)
     ds.buildFacetsDataset()
 
+    return cin_for_runs(ds.runList, method=method, gene_or_seg=gene_or_seg, splitArms=splitArms,
+                        cinLevel=cinLevel, verbose=verbose)
+
+
+def isolated_run(run):
+    """A copy of ``run`` safe to pass to defineArms(), which splits segments in place.
+
+    Scoring must not depend on what ran before it: a split segment adds a breakpoint to later scores.
+    """
+    twin = copy.copy(run)
+    twin.segments = list(run.segments)
+    return twin
+
+
+def _has_ploidy(run):
+    try:
+        return math.isfinite(float(run.ploidy))
+    except (TypeError, ValueError):
+        return False
+
+
+def cin_for_runs(runs, method="methodID", gene_or_seg="seg", splitArms=True, cinLevel="full", verbose=False):
+    """CIN scores for runs from an already built FacetsDataset. See calculate_cin() for the options.
+
+    The runs are left unchanged. Runs without a numeric ploidy can't be scored; they are skipped and counted.
+    """
+    scorable = [isolated_run(run) for run in runs if _has_ploidy(run)]
+    if len(scorable) < len(runs):
+        print("CIN: skipped %d runs without a numeric ploidy." % (len(runs) - len(scorable)))
+
     results = []
 
     # Handle gene type processing.
     if gene_or_seg == "gene":
         if cinLevel == "full":
-            for run in ds.runList:
+            for run in scorable:
                 # Get ploidy for this run
                 ploidy = float(run.ploidy)
 
@@ -189,7 +221,7 @@ def calculate_cin(target_sample_ids,
 
         
         if cinLevel == "chrom":
-            for run in ds.runList:
+            for run in scorable:
                 # get ploidy
                 ploidy = float(run.ploidy)
 
@@ -320,7 +352,7 @@ def calculate_cin(target_sample_ids,
              
         
         if cinLevel == "arm":
-            for run in ds.runList:
+            for run in scorable:
                 ploidy = float(run.ploidy)
                 # Group autosomal genes by arm
                 arm_genes = defaultdict(list)
@@ -452,7 +484,7 @@ def calculate_cin(target_sample_ids,
     # Handle seg type processing.
     if gene_or_seg == "seg":
         if cinLevel == "full":
-            for run in ds.runList:
+            for run in scorable:
                 # ensure each segment has an .arm if splitArms=True
                 if splitArms:
                     run.defineArms()
@@ -579,7 +611,7 @@ def calculate_cin(target_sample_ids,
             
             
         if cinLevel == "chrom":
-            for run in ds.runList:
+            for run in scorable:
                 ploidy = float(run.ploidy)
 
                 # Select autosomal segments
@@ -722,7 +754,7 @@ def calculate_cin(target_sample_ids,
             
 
         if cinLevel == "arm":
-            for run in ds.runList:
+            for run in scorable:
                 # Ensure arms are defined
                 run.defineArms()
                 ploidy = float(run.ploidy)

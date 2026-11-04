@@ -93,10 +93,14 @@ class bcolors:
 #              scheduler; wrap the call yourself (sbatch, a Nextflow process, a container) if you need one.
 ######################
 class ExtTools:
-    def __init__(self, ref_meta, config=None):
+    #With a built FacetsDataset, merged files and ascets use only the runs that passed its filters.
+    def __init__(self, ref_meta, config=None, dataset=None):
         if not isinstance(ref_meta, FacetsMeta):
             raise FacetsConfigError("ExtTools(): ref_meta must be of type FacetsMeta.")
+        if dataset is not None and not isinstance(dataset, FacetsDataset):
+            raise FacetsConfigError("ExtTools(): dataset must be a FacetsDataset.")
         self.ref_meta = ref_meta
+        self.dataset = dataset
         self.config = config if config is not None else FacetsConfig.from_env()
         if not isinstance(self.config, FacetsConfig):
             raise FacetsConfigError("ExtTools(): config must be a FacetsConfig.")
@@ -117,7 +121,8 @@ class ExtTools:
         completed_files = set()
         wrote_header = False
         with open(outfile_path, 'w') as outfile:
-            for item in self.ref_meta.master_file_dict:
+            items = self.dataset.selected_keys if self.dataset is not None else self.ref_meta.master_file_dict
+            for item in items:
                 cur_file = self.ref_meta.master_file_dict.get(item)[fileType]
                 if not cur_file:
                     continue
@@ -148,7 +153,7 @@ class ExtTools:
                 raise FacetsConfigError("ExtTools.runAscets(): missing %s (set FACETSAPI_ASCETS_DIR or FacetsConfig.ascets_dir)." % needed)
 
         #Print some notes on dependencies.
-        print("\t\tNote: Ascets requires R 3.6.* and requires tidyverse and data.table libraries.")
+        print("\t\tNote: Ascets requires R 3.6.* and requires dplyr, tidyr, tibble and data.table libraries.")
         print("\t\tNote: Failure to meet these dependencies will result in an empty ascets run.")
 
         #Make an output folder if necessary.
@@ -159,7 +164,9 @@ class ExtTools:
             os.makedirs(output_dir, exist_ok=True)
 
         #Make an adjusted or unadjusted merged seg file to use as ascets input.
-        #This will use everything in the FacetsMeta reference object for ExtTools.
+        #This will use the dataset's runs if ExtTools was given one, otherwise everything in the FacetsMeta.
+        if self.dataset is not None and not self.dataset.selected_keys:
+            raise FacetsConfigError("ExtTools.runAscets(): no samples passed the dataset's filters.")
         merged_seg_tmp_file = os.path.join(output_dir, "merged_seg_data.seg")
         if use_adjusted:
             adj_str = "facetsAdjustedSeg"
@@ -784,6 +791,7 @@ class FacetsDataset:
     def __init__(self, facets_meta):
         self.sampleList = {}
         self.runList = []
+        self.selected_keys = []   # master_file_dict keys of the runs that passed the filters
         self.numSamples = 0
         self.ref_facetsMeta = facets_meta
 
@@ -1620,6 +1628,7 @@ class FacetsDataset:
                 self.sampleList[cur_sample_id] = cur_sample
             cur_sample.addRun(cur_run)
             self.runList.append(cur_run)
+            self.selected_keys.append(key)
             total_samples_prepped = total_samples_prepped + 1
 
         self.numSamples = len(self.runList)

@@ -14,3 +14,4 @@
 ### Configuration
 * [FacetsConfig, environment variables, exceptions](configuration.md)
 * Fit selection policy: see [FacetsMeta](facetsmeta.md#fit-selection-policy)
+* [Request spec: describe a job as JSON and generate its script](spec.md)

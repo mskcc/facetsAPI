@@ -13,7 +13,9 @@
 #######################################
 
 ### LOAD REQUIRED LIBRARIES
-suppressMessages(suppressWarnings(library(tidyverse)))
+suppressMessages(suppressWarnings(library(dplyr)))
+suppressMessages(suppressWarnings(library(tidyr)))
+suppressMessages(suppressWarnings(library(tibble)))
 suppressMessages(suppressWarnings(library(data.table)))
 ###
 

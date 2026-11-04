@@ -3,7 +3,7 @@
 FacetsAPI requires Python 3.9 or newer with the pandas, numpy and matplotlib libraries (installed automatically by pip).
 
 R is only needed for the optional external tools (`ExtTools.runAscets`, `FPTools.runGenerateGenomicAnnotations`):
-R 3.6 with tidyverse/data.table for ascets, and facetsPreview for genomic annotations. See [Configuration](configuration.md)
+R 3.6 with dplyr, tidyr, tibble and data.table for ascets, and facetsPreview for genomic annotations. See [Configuration](configuration.md)
 for telling facetsAPI how to reach `Rscript` on your system (for example through Lmod modules on IRIS).
 
 ## Installation

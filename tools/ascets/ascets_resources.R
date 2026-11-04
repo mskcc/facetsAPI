@@ -32,7 +32,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.\n")
 
 ###  REQUIRED LIBRARIES
-suppressMessages(suppressWarnings(library(tidyverse)))
+suppressMessages(suppressWarnings(library(dplyr)))
+suppressMessages(suppressWarnings(library(tidyr)))
+suppressMessages(suppressWarnings(library(tibble)))
 suppressMessages(suppressWarnings(library(data.table)))
 
 ### FUNCTIONS

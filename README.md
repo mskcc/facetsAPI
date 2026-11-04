@@ -7,6 +7,7 @@
 * [API Reference Documentation](doc/README.md)
 * [Configuration (R tools, environment variables, exceptions)](doc/configuration.md)
 * [Example Scripts & Use Cases](doc/examples.md)
+* [Request Spec (JSON jobs and script generation)](doc/spec.md)
 
 ---
 

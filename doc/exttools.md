@@ -12,6 +12,12 @@ ext_tools = ExtTools(prepared_metadata)                                   # Face
 ext_tools = ExtTools(prepared_metadata, config=FacetsConfig(r_prefix="module use /admin/software/spack/spack_modulefiles/Core/ && module load r/3.6.3"))
 ```
 
+Pass `dataset=` a built [FacetsDataset](facetsdataset.md) to make merged files and ascets use only the runs that passed its filters. Without it they use every run in the FacetsMeta:
+
+```python
+ext_tools = ExtTools(prepared_metadata, dataset=test_dataset)
+```
+
 R calls run **inline** (no job scheduler). Wrap your script in `sbatch`, a Nextflow process or a container if you need one.
 
 ### Functions

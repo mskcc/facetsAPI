@@ -22,7 +22,7 @@ from statistics import mean, stdev, median
 # root to PYTHONPATH. cin_scores.py is loaded from this scripts directory.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from facetsAPI import FacetsMeta, FacetsDataset  # noqa: E402
-from cin_scores import calculate_cin, write_cin_results  # noqa: E402
+from cin_scores import cin_for_runs, isolated_run, write_cin_results  # noqa: E402
 
 
 def identify_candidate_arms(
@@ -251,6 +251,26 @@ def write_candidate_arms(summary_results: dict, output_file: str):
                 out.write("\t".join(row) + "\n")
 
 
+def chromothripsis_for_runs(runs, out_prefix, method="Eckert", gene_or_seg="seg", min_breakpoints=2,
+                            min_ris_delta_pct=0.25, breakpoint_offset=2, bg_metric="median", verbose=False):
+    """Score runs from an already built FacetsDataset, leaving them unchanged.
+
+    Writes <out_prefix>_cin_full.tsv, <out_prefix>_cin_arm.tsv and <out_prefix>_candidate_arms.tsv.
+    """
+    common = dict(method=method, gene_or_seg=gene_or_seg, verbose=verbose)
+    full_results = cin_for_runs(runs, splitArms=False, cinLevel="full", **common)
+    arm_results = cin_for_runs(runs, splitArms=True, cinLevel="arm", **common)
+    write_cin_results(full_results, out_prefix + "_cin_full.tsv")
+    write_cin_results(arm_results, out_prefix + "_cin_arm.tsv")
+
+    run_map = {run.id: isolated_run(run) for run in runs}
+    summary = identify_candidate_arms(arm_results, full_results, run_map,
+                                      min_breakpoints=min_breakpoints, min_ris_delta_pct=min_ris_delta_pct,
+                                      breakpoint_offset=breakpoint_offset, bg_metric=bg_metric)
+    write_candidate_arms(summary, out_prefix + "_candidate_arms.tsv")
+    return summary
+
+
 def main(argv=None):
     """CLI: genome-wide and per-arm CIN scores plus chromothripsis candidate-arm flags for a list of samples.
 
@@ -295,17 +315,10 @@ def main(argv=None):
     if absent:
         sys.stderr.write("[warn] no runs for: " + ", ".join(absent) + "\n")
 
-    common = dict(method=args.method, gene_or_seg=args.gene_or_seg, clinical_sample_file=args.clinical_sample_file,
-                  facets_dir=args.facets_dir, verbose=args.verbose)
-    full_results = calculate_cin(samples, splitArms=False, cinLevel="full", **common)
-    arm_results = calculate_cin(samples, splitArms=True, cinLevel="arm", **common)
-    write_cin_results(full_results, args.out_prefix + "_cin_full.tsv")
-    write_cin_results(arm_results, args.out_prefix + "_cin_arm.tsv")
-
-    summary = identify_candidate_arms(arm_results, full_results, run_map,
+    summary = chromothripsis_for_runs(ds.runList, args.out_prefix, method=args.method, gene_or_seg=args.gene_or_seg,
                                       min_breakpoints=args.min_breakpoints, min_ris_delta_pct=args.min_ris_delta_pct,
-                                      breakpoint_offset=args.breakpoint_offset, bg_metric=args.bg_metric)
-    write_candidate_arms(summary, args.out_prefix + "_candidate_arms.tsv")
+                                      breakpoint_offset=args.breakpoint_offset, bg_metric=args.bg_metric,
+                                      verbose=args.verbose)
     print("Wrote %s_{cin_full,cin_arm,candidate_arms}.tsv" % args.out_prefix)
     return summary
 
