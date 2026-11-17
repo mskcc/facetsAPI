@@ -347,7 +347,7 @@ class FacetsMeta:
     PERSIST_VERSION = 2   # bump when the pickled FacetsMeta state changes shape
 
     def __init__(self, clinical_sample_file = "", facets_repo_path = "", hisens_vs_purity="purity", persist_data="no",
-                 fit_class="research", fit_policy=None):
+                 fit_class="research", fit_policy=None, keep_all_normals=False):
         """
         clinical_sample_file : cbio data_clinical_sample(.oncokb).txt, or "" to walk the repository instead.
         facets_repo_path     : the FACETS repository root (the directory holding the P-00xxx folders).
@@ -357,6 +357,10 @@ class FacetsMeta:
                                "clinical", "research" (default) or "both". Standard samples ignore it.
         fit_policy           : a FitPolicy controlling single-run fit selection. Default tiers:
                                reviewed > autoqc > default. See setSingleRunPerSample() / setFitPolicy().
+        keep_all_normals     : when a tumor id matches several <tumor>_<normal> directories, False (default)
+                               keeps only the last one (sorted); True loads every pair, each keyed by its
+                               PAIR id instead of the tumor id. Only matters with a clinical sample file
+                               (walking the repository already lists every pair folder).
         """
         #Relevant path and file data.
         self.clinical_sample_file    = clinical_sample_file if clinical_sample_file else ""
@@ -368,6 +372,7 @@ class FacetsMeta:
             raise FacetsConfigError("fit_policy must be a FitPolicy instance.")
         self.fit_policy              = fit_policy if fit_policy is not None else FitPolicy()
         self._fit_policy_explicit    = fit_policy is not None
+        self.keep_all_normals        = bool(keep_all_normals)
 
         #Per-instance run state. (Before 2.0.0 these were class attributes shared by every FacetsMeta.)
         self.selectSingleRun         = False
@@ -454,7 +459,7 @@ class FacetsMeta:
                           "(format %s, current %s). Fit-selection settings are taken from this object, not from the file; "
                           "rebuild the persisted file to refresh it." % (version, FacetsMeta.PERSIST_VERSION) + bcolors.ENDC)
                     for k in ("selectSingleRun", "use_unreviewed_defaults", "fit_policy", "_fit_policy_explicit",
-                              "fit_class", "hisens_vs_purity", "_persist_version"):
+                              "fit_class", "hisens_vs_purity", "keep_all_normals", "_persist_version"):
                         saved.pop(k, None)
                 for k in ("persist_data", "run_verbose"):
                     saved.pop(k, None)
@@ -527,6 +532,10 @@ class FacetsMeta:
 
     #The FacetsSample id (<tumor>_<normal> pair id) that a master_file_dict key belongs to.
     def pairIdForKey(self, key):
+        #A key that already carries the pair id (keep_all_normals, walk mode, all-fits long ids) is authoritative;
+        #long_id_map[tumor] would name a different normal for a multi-normal tumor.
+        if "_" in pair_id(key):
+            return pair_id(key)
         base = self.long_id_map.get(short_sample_id(key))
         if base:
             return pair_id(base[0])
@@ -631,6 +640,40 @@ class FacetsMeta:
             self.long_id_map.setdefault(id, []).append(long_id)
             self._registerRun(long_id, fc, cand, files, counts)
 
+    def _parseSampleDir(self, id, id_with_normal, sample_dir, counts):
+        """Discover one <tumor>_<normal> directory and register its run(s) under ``id``."""
+        classes = discover_sample(sample_dir)
+        if not classes:
+            counts["missing_manifest"] += 1
+            return
+        if classes[0].is_2n:
+            counts["twon_samples"] += 1
+        else:
+            counts["standard_samples"] += 1
+        classes = select_classes(classes, self.fit_class)
+        if not classes:
+            counts["missing_class"] += 1
+            self._vprint("\t\tSkipping %s: 2n pair has no %s class." % (id_with_normal, self.fit_class))
+            return
+        multi_class = len(classes) > 1
+
+        for fc in classes:
+            try:
+                manifest = read_manifest(fc.manifest_path)
+            except ManifestError as e:
+                counts["bad_manifest"] += 1
+                self.failed_samples.append(id_with_normal)
+                self._vprint("\t\t" + str(e), bcolors.FAIL)
+                continue
+            counts["skipped_not_selected"] += int((manifest["fit_name"] == NOT_SELECTED).sum())
+            if not self.fit_policy.include_ultra_fits:
+                counts["skipped_ultra"] += int(manifest["fit_name"].map(is_ultra).sum())
+
+            if self.selectSingleRun:
+                self._selectSingleFit(id, id_with_normal, fc, manifest, multi_class, counts)
+            else:
+                self._collectAllFits(id, id_with_normal, fc, manifest, counts)
+
     def parseClinicalSample(self):
         counts = {k: 0 for k in FacetsMeta.COUNTER_KEYS}
         self.build_counts = counts
@@ -706,43 +749,18 @@ class FacetsMeta:
             if not cur_id_dirs:
                 counts["not_found"] += 1
                 continue
-            #Keep track of how many samples had the same tumor/id, but multiple normals. The last one (sorted) is used.
+            #Keep track of how many samples had the same tumor/id, but multiple normals. Unless keep_all_normals,
+            #the last one (sorted) is used.
             if len(cur_id_dirs) > 1:
                 counts["multi_normal"] += 1
-            sample_dir     = cur_id_dirs[-1].rstrip("/")
-            id_with_normal = os.path.basename(sample_dir)
+            sample_dirs = cur_id_dirs if self.keep_all_normals else cur_id_dirs[-1:]
 
-            classes = discover_sample(sample_dir)
-            if not classes:
-                counts["missing_manifest"] += 1
-                continue
-            if classes[0].is_2n:
-                counts["twon_samples"] += 1
-            else:
-                counts["standard_samples"] += 1
-            classes = select_classes(classes, self.fit_class)
-            if not classes:
-                counts["missing_class"] += 1
-                self._vprint("\t\tSkipping %s: 2n pair has no %s class." % (id_with_normal, self.fit_class))
-                continue
-            multi_class = len(classes) > 1
-
-            for fc in classes:
-                try:
-                    manifest = read_manifest(fc.manifest_path)
-                except ManifestError as e:
-                    counts["bad_manifest"] += 1
-                    self.failed_samples.append(id_with_normal)
-                    self._vprint("\t\t" + str(e), bcolors.FAIL)
-                    continue
-                counts["skipped_not_selected"] += int((manifest["fit_name"] == NOT_SELECTED).sum())
-                if not self.fit_policy.include_ultra_fits:
-                    counts["skipped_ultra"] += int(manifest["fit_name"].map(is_ultra).sum())
-
-                if self.selectSingleRun:
-                    self._selectSingleFit(id, id_with_normal, fc, manifest, multi_class, counts)
-                else:
-                    self._collectAllFits(id, id_with_normal, fc, manifest, counts)
+            for sample_dir in sample_dirs:
+                sample_dir     = sample_dir.rstrip("/")
+                id_with_normal = os.path.basename(sample_dir)
+                #keep_all_normals keys every run by its pair id so two normals of one tumor cannot collide.
+                run_id         = id_with_normal if self.keep_all_normals else id
+                self._parseSampleDir(run_id, id_with_normal, sample_dir, counts)
 
         if self.selectSingleRun:
             print("\tSelecting single FacetsRun per FacetsSample.")

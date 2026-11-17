@@ -42,6 +42,14 @@ FACETS files contain a variety of files detailing segments, copy number alterati
 * `gene_level_report.py` — edit the paths at the top: `writeReport()` plus `writeGeneLevelReport()` (TP53 by default) for a list of sample ids.
 * `integrity.py`, `hypoploidy.py`, `aneuploidy_ascets.py`, `make_report.py`, ... — see each file's header.
 
+# What changed in 2.1.0
+
+* **`FitPolicy.cadence_autoqc()`** reproduces CADENCE's 2n cohort policy `autoqc`: the `auto-qc` reviewer's `auto_qc_best_fit`, else the default fit, with human verdicts, `auto_qc_pass`, legacy `auto-qc-script` rows and ultra fits ignored. Built from four new `FitPolicy` fields, all defaulting to 2.0.0 behavior: `autoqc_statuses`, `legacy_autoqc`, `autoqc_reviewer`, `fall_through`. See [FacetsMeta](doc/facetsmeta.md#fit-selection-policy).
+* **`FacetsMeta(..., keep_all_normals=True)`** loads every `<tumor>_<normal>` pair of a tumor and keys runs by pair id, instead of keeping only the last normal. Default unchanged.
+* `pairIdForKey()` returns the key's own pair when the key carries one (it named the first normal for every pair of a multi-normal tumor).
+* `FitPolicy` objects pickled by 2.0.0 load with the new fields at their defaults.
+* **Pre-generated metas:** `facetsAPI.prebuilt.load_prebuilt_meta()` loads the newest FacetsMeta CADENCE pickled beside the 2n research/autoqc cohort when it matches a request. Request specs gain `fits.preset: "cadence_autoqc"` and `source.prebuilt` (see [Request spec](doc/spec.md#pre-generated-metas)).
+
 # What changed in 2.0.0
 
 * **2n repositories are supported.** Pairs with `clinical/` and `research/` fit sets are detected automatically; `FacetsMeta(..., fit_class="clinical"|"research"|"both")` chooses what to load (default `research`). Standard repositories are unaffected. See [FacetsMeta](doc/facetsmeta.md).

@@ -8,7 +8,7 @@ files and folders in the FACETS repository.
 
 ```python
 FacetsMeta(clinical_sample_file="", facets_repo_path="", hisens_vs_purity="purity", persist_data="no",
-           fit_class="research", fit_policy=None)
+           fit_class="research", fit_policy=None, keep_all_normals=False)
 ```
 
 The **data clinical sample file** is updated daily by the DMP-2022 knowledgebase and can be obtained through their github page.
@@ -33,6 +33,13 @@ load with a warning; the fit-selection settings then come from the constructor a
 The **fit_class** parameter only matters for **2n repositories** (see below): `"clinical"`, `"research"` (default) or `"both"`.
 
 The **fit_policy** parameter is a [FitPolicy](#fit-selection-policy) controlling which fit is chosen per sample in single-run mode.
+
+The **keep_all_normals** parameter decides what happens when a tumor id from the clinical sample file matches several
+`<tumor>_<normal>` directories. `False` (default) keeps only the last one (sorted) and counts the tumor in
+`build_counts["multi_normal"]`. `True` loads every pair, and keys each run by its **pair id** (`<tumor>_<normal>`, or
+`<tumor>_<normal>#<class>` with `fit_class="both"`) so two normals cannot collide. Clinical lookups still resolve through
+`shortId(key)`, and `pairIdForKey(key)` returns the key's own pair. Walking the repository (no clinical file) already lists
+every pair folder, so the option only matters with a clinical file.
 
 ### Repository layouts: standard and 2n
 
@@ -96,6 +103,29 @@ m.setFitPolicy(FitPolicy.autoqc_only())            # only autoQC fits
 m.setFitPolicy(FitPolicy.default_only())           # only the default fit
 m.setFitPolicy(FitPolicy(("autoqc", "reviewed", "default"), tie_break="newest_reviewed"))
 m.setFitPolicy(FitPolicy(include_ultra_fits=True))
+```
+
+The autoqc tier can be narrowed, and fall-through turned off:
+
+| FitPolicy field | default | effect |
+|---|---|---|
+| `autoqc_statuses` | `("auto_qc_best_fit", "auto_qc_pass")` | current-autoQC statuses admitted to the autoqc tier, in rank order |
+| `legacy_autoqc` | `True` | `False`: legacy `reviewed_*` rows by an automated reviewer join no tier |
+| `autoqc_reviewer` | `None` | e.g. `"auto-qc"`: `auto_qc_*` rows count only when `reviewed_by` is exactly this |
+| `fall_through` | `True` | `False`: only the first candidate is tried; if its files are missing the sample is skipped (`missing_files`) |
+
+A row these settings exclude drops to the default tier if it is the `default` fit (keeping its status label), otherwise to no tier.
+
+`FitPolicy.cadence_autoqc()` reproduces CADENCE's 2n cohort policy `autoqc` (facets-preview
+`compile_cohort_annotations_2n(policy="autoqc")`, the `cohort_level/<stamp>/<class>/autoqc/` files): the fit the `auto-qc`
+reviewer marked `auto_qc_best_fit`, else the default fit. Human verdicts, `auto_qc_pass`, legacy `auto-qc-script` rows and ultra
+fits are ignored, and there is no fall-through. Combine it with `keep_all_normals=True` to get one run per pair, as in the cohort:
+
+```python
+m = FacetsMeta(clin, "/path/to/impact_2n/facets/all/", "purity", fit_class="research",
+               fit_policy=FitPolicy.cadence_autoqc(), keep_all_normals=True)
+m.setSingleRunPerSample(True, True)
+m.buildFacetsMeta()
 ```
 
 A policy passed to the constructor or `setFitPolicy()` survives a later `setSingleRunPerSample(True, allowDefaults)`; only its default tier is toggled.

@@ -30,7 +30,20 @@ A request spec is a JSON description of one facetsAPI job. `facetsAPI/spec.py` v
 | `fits.single_run` | `true`: one fit per sample, chosen by `tiers`. `false`: every fit. |
 | `fits.tiers` | Ordered subset of `reviewed`, `autoqc`, `default`. `["reviewed"]` means human-reviewed fits only. |
 | `fits.tie_break` | `manifest_order` (default), `newest_reviewed`: which fit wins when several in a tier qualify |
+| `fits.preset` | Optional, replaces `tiers`/`tie_break`. `cadence_autoqc`: the same fits as CADENCE's 2n autoQC cohort (`FitPolicy.cadence_autoqc()`, every normal of a tumor kept). Needs `single_run` true. |
+| `source.prebuilt` | Optional, default `false`. `true`: load the newest FacetsMeta CADENCE pre-generated for this repository instead of scanning it, and build it as usual if none fits. Needs `fits.preset: cadence_autoqc`, `single_run` true and `fit_class: research`. |
 | `samples` | `{"source": "all"}`, or `{"source": "list", "ids": [...]}` with tumor sample IDs or pair IDs. Patient IDs are rejected. |
+
+### Pre-generated metas
+
+CADENCE's cohort step pickles a FacetsMeta beside each 2n research/autoqc cohort, one per mode:
+`<repo>/../cohort_level/<yyyy_MM_dd>/research/autoqc/<prefix>.facets_meta.<mode>.pkl`. With `source.prebuilt`, the
+script calls `facetsAPI.prebuilt.load_prebuilt_meta()`, which takes the newest pickle whose repository, mode, fit class,
+fit policy and normals setting match the request, then re-reads the clinical maps from the job's clinical file, keeps
+only tumors in it and applies the sample list, so the result equals a live build of the same spec. Fits reviewed after
+the pickle's cohort date are not in it. `run_summary.json` records what happened under `meta_source`: `used`, and
+either the pickle `path`/`stamp` or the `reason` it fell back to a live build. Pickles are only read from the
+repository's own `cohort_level` tree, read-only; the write guard is unaffected.
 
 ### Filters
 

@@ -19,10 +19,21 @@ tier is ``FitPolicy.reviewed_only()`` etc. Within a status, manifest order wins 
 Selection FALLS THROUGH: the first candidate whose files exist for the requested
 purity/hisens mode is taken. Ultra fits (``.../ultra``, hisens-only on disk) are
 excluded unless ``include_ultra_fits=True``.
+
+The autoqc tier can be narrowed (all default to the behavior above):
+    autoqc_statuses  which current-autoQC statuses count, e.g. ("auto_qc_best_fit",)
+    legacy_autoqc    False: reviewed_* rows by an automated reviewer count in NO tier
+    autoqc_reviewer  e.g. "auto-qc": auto_qc_* rows count only when reviewed_by is exactly this
+    fall_through     False: only the policy's FIRST candidate is tried; if its files are
+                     missing the sample is skipped instead of taking the next candidate
+
+``FitPolicy.cadence_autoqc()`` combines these to reproduce CADENCE's 2n cohort policy
+'autoqc' (facets-preview compile_cohort_annotations_2n): the autoQC's auto_qc_best_fit,
+else the default fit; human verdicts, auto_qc_pass and legacy autoQC rows are ignored.
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pandas as pd
 
@@ -60,17 +71,33 @@ def is_auto_reviewer(reviewed_by, pattern=AUTO_REVIEWER_PATTERN):
     return bool(re.search(pattern, str(reviewed_by or ""), flags=re.IGNORECASE))
 
 
-def classify(review_status, fit_name, reviewed_by=None, pattern=AUTO_REVIEWER_PATTERN):
-    """Return (tier, rank, label) for a manifest row. rank orders rows within a tier (0 = best)."""
+def classify(review_status, fit_name, reviewed_by=None, pattern=AUTO_REVIEWER_PATTERN,
+             autoqc_statuses=AUTOQC_STATUSES, legacy_autoqc=True, autoqc_reviewer=None):
+    """Return (tier, rank, label) for a manifest row. rank orders rows within a tier (0 = best).
+
+    The keyword arguments narrow the autoqc tier (see FitPolicy); a row they exclude falls to the
+    default tier when its fit_name is "default", else to the unreviewed tier, and keeps its label.
+    """
     status = str(review_status)
+
+    def fallback(label):
+        if str(fit_name) == "default":
+            return TIER_DEFAULT, 0, label
+        return TIER_UNREVIEWED, 0, label
+
     if status in REVIEWED_STATUSES:
         rank = REVIEWED_STATUSES.index(status)
         if is_auto_reviewer(reviewed_by, pattern):
-            return TIER_AUTOQC, rank, (STATUS_LABELS["auto_qc_best_fit"], STATUS_LABELS["auto_qc_pass"])[rank]
+            label = (STATUS_LABELS["auto_qc_best_fit"], STATUS_LABELS["auto_qc_pass"])[rank]
+            if not legacy_autoqc:
+                return fallback(label)
+            return TIER_AUTOQC, rank, label
         return TIER_REVIEWED, rank, STATUS_LABELS[status]
     if status in AUTOQC_STATUSES:
-        rank = AUTOQC_STATUSES.index(status)
-        return TIER_AUTOQC, rank, STATUS_LABELS[status]
+        label = STATUS_LABELS[status]
+        if status not in autoqc_statuses or (autoqc_reviewer is not None and str(reviewed_by) != autoqc_reviewer):
+            return fallback(label)
+        return TIER_AUTOQC, list(autoqc_statuses).index(status), label
     if str(fit_name) == "default":
         return TIER_DEFAULT, 0, DEFAULT_LABEL
     return TIER_UNREVIEWED, 0, UNREVIEWED_LABEL
@@ -108,6 +135,10 @@ class FitPolicy:
     include_ultra_fits: bool = False
     tie_break: str = "manifest_order"
     auto_reviewer_pattern: str = AUTO_REVIEWER_PATTERN   # reviewed_by regex that marks a row as automated
+    autoqc_statuses: tuple = AUTOQC_STATUSES              # current-autoQC statuses admitted to the autoqc tier, in rank order
+    legacy_autoqc: bool = True                            # reviewed_* rows by an automated reviewer count as autoqc
+    autoqc_reviewer: str = None                           # if set, auto_qc_* rows need reviewed_by == this exactly
+    fall_through: bool = True                             # False: only the first candidate is tried
 
     def __post_init__(self):
         tiers = tuple(self.tiers) if not isinstance(self.tiers, str) else (self.tiers,)
@@ -125,9 +156,26 @@ class FitPolicy:
             re.compile(self.auto_reviewer_pattern)
         except re.error as e:
             raise FacetsConfigError("auto_reviewer_pattern is not a valid regex: %s" % e)
+        statuses = (self.autoqc_statuses,) if isinstance(self.autoqc_statuses, str) else tuple(self.autoqc_statuses)
+        object.__setattr__(self, "autoqc_statuses", statuses)
+        if not statuses:
+            raise FacetsConfigError("autoqc_statuses needs at least one status")
+        bad = [s for s in statuses if s not in AUTOQC_STATUSES]
+        if bad or len(set(statuses)) != len(statuses):
+            raise FacetsConfigError("autoqc_statuses must be distinct values from %s; got %s"
+                                    % (list(AUTOQC_STATUSES), list(statuses)))
+        if self.autoqc_reviewer is not None and not str(self.autoqc_reviewer):
+            raise FacetsConfigError("autoqc_reviewer must be None or a non-empty reviewer name")
+
+    def __setstate__(self, state):
+        # FitPolicy objects pickled by facetsAPI <= 2.0.0 lack the autoqc/fall_through fields.
+        for name, f in self.__dataclass_fields__.items():
+            state.setdefault(name, f.default)
+        self.__dict__.update(state)
 
     def classify(self, review_status, fit_name, reviewed_by=None):
-        return classify(review_status, fit_name, reviewed_by, self.auto_reviewer_pattern)
+        return classify(review_status, fit_name, reviewed_by, self.auto_reviewer_pattern,
+                        self.autoqc_statuses, self.legacy_autoqc, self.autoqc_reviewer)
 
     # ---- convenience constructors -------------------------------------------------
     @classmethod
@@ -146,6 +194,17 @@ class FitPolicy:
     def reviewed_then_autoqc(cls, **kw):
         return cls(tiers=(TIER_REVIEWED, TIER_AUTOQC), **kw)
 
+    @classmethod
+    def cadence_autoqc(cls, **kw):
+        """CADENCE 2n cohort policy 'autoqc' (facets-preview compile_cohort_annotations_2n): the fit the
+        current autoQC ('auto-qc') marked auto_qc_best_fit, else the default fit. Human verdicts, auto_qc_pass
+        and legacy auto-qc-script rows are ignored; ultra fits are never selected; no fall-through to a
+        further candidate when the selected fit's files are missing (the sample is skipped and counted)."""
+        args = dict(tiers=(TIER_AUTOQC, TIER_DEFAULT), autoqc_statuses=("auto_qc_best_fit",),
+                    legacy_autoqc=False, autoqc_reviewer="auto-qc", fall_through=False)
+        args.update(kw)
+        return cls(**args)
+
     @property
     def allows_defaults(self):
         return TIER_DEFAULT in self.tiers
@@ -157,7 +216,7 @@ class FitPolicy:
             tiers.append(TIER_DEFAULT)
         if not tiers:
             tiers = [TIER_DEFAULT]
-        return FitPolicy(tuple(tiers), self.include_ultra_fits, self.tie_break, self.auto_reviewer_pattern)
+        return replace(self, tiers=tuple(tiers))
 
     # ---- selection ------------------------------------------------------------------
     def eligible_rows(self, manifest_df):
@@ -242,7 +301,8 @@ class FitPolicy:
     def select_fit(self, manifest_df, mode, class_dir):
         """Return (candidate, files, tried) for the first candidate whose files exist, else (None, None, tried).
 
-        ``tried`` is the list of candidates whose files were missing (for diagnostics).
+        ``tried`` is the list of candidates whose files were missing (for diagnostics). With
+        ``fall_through=False`` only the first candidate is tried.
         """
         tried = []
         for cand in self.candidates(manifest_df):
@@ -250,6 +310,8 @@ class FitPolicy:
             if files is not None:
                 return cand, files, tried
             tried.append(cand)
+            if not self.fall_through:
+                break
         return None, None, tried
 
 

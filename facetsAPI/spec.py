@@ -24,6 +24,9 @@ MODES = ("purity", "hisens")
 FIT_CLASSES = ("clinical", "research", "both")
 TIERS = ("reviewed", "autoqc", "default")
 TIE_BREAKS = ("manifest_order", "newest_reviewed")
+#fits.preset: a named selection that replaces fits.tiers. "cadence_autoqc" = CADENCE's 2n cohort policy 'autoqc'
+#(FitPolicy.cadence_autoqc()) with every normal of a tumor kept (keep_all_normals), i.e. the research/autoqc cohort.
+FIT_PRESETS = {"cadence_autoqc": "Same fits as the CADENCE autoQC cohort"}
 TRISTATE_FILTERS = {"wgd": "setWGDFilter", "facets_qc": "setFacetsQCFilter"}
 
 #key: (setter, lowest allowed, highest allowed). A missing bound means no limit on that side.
@@ -177,6 +180,15 @@ def _check_source(spec, errors):
         errors.append("source.mode must be one of: %s." % ", ".join(MODES))
     if source.get("fit_class", "research") not in FIT_CLASSES:
         errors.append("source.fit_class must be one of: %s." % ", ".join(FIT_CLASSES))
+    prebuilt = source.get("prebuilt", False)
+    if not isinstance(prebuilt, bool):
+        errors.append("source.prebuilt must be true or false.")
+    elif prebuilt:
+        fits = _section(spec, "fits")
+        if fits.get("preset") != "cadence_autoqc" or fits.get("single_run") is not True \
+                or source.get("fit_class", "research") != "research":
+            errors.append("Pre-generated data is only available for one fit per sample, research fits, "
+                          "with the CADENCE autoQC cohort fit selection.")
 
 
 def _check_fits(spec, errors):
@@ -186,6 +198,12 @@ def _check_fits(spec, errors):
         return
     if not isinstance(fits.get("single_run"), bool):
         errors.append("fits.single_run must be true or false.")
+    if "preset" in fits:
+        if not _is_choice(fits["preset"], FIT_PRESETS):
+            errors.append("fits.preset must be one of: %s." % ", ".join(FIT_PRESETS))
+        elif fits.get("single_run") is not True:
+            errors.append("fits.preset needs fits.single_run true.")
+        return   # a preset replaces tiers and tie_break
     tiers = fits.get("tiers")
     if not (isinstance(tiers, list) and tiers and all(isinstance(t, str) and t in TIERS for t in tiers)
             and len(set(tiers)) == len(tiers)):
@@ -559,18 +577,44 @@ def render(spec, ctx):
     if script_imports:
         lines.append("sys.path.insert(0, %r)" % (ctx["facetsapi_home"].rstrip("/") + "/scripts"))
         lines += script_imports
-    lines += [
-        "",
-        "meta = FacetsMeta(%r, %r, %r, fit_class=%r)" % (
+    preset = fits.get("preset")
+    sample_list = spec["samples"]["source"] == "list"
+    build = []
+    if preset == "cadence_autoqc":
+        build.append("meta = FacetsMeta(%r, %r, %r, fit_class=%r, fit_policy=FitPolicy.cadence_autoqc(), keep_all_normals=True)" % (
             source.get("clinical_file", ""), source["facets_dir"], source.get("mode", "purity"),
-            source.get("fit_class", "research")),
-    ]
-    if fits["single_run"]:
-        lines.append("meta.setSingleRunPerSample(True, %r)" % ("default" in fits["tiers"]))
-        lines.append("meta.setFitPolicy(%s)" % _fit_policy_code(fits))
-    if spec["samples"]["source"] == "list":
-        lines.append('meta.selectSamplesFromFile(os.path.join(JOB_DIR, "samples.txt"))')
-    lines += ["meta.buildFacetsMeta()", "", "dataset = FacetsDataset(meta)"]
+            source.get("fit_class", "research")))
+        build.append("meta.setSingleRunPerSample(True, True)")
+    else:
+        build.append("meta = FacetsMeta(%r, %r, %r, fit_class=%r)" % (
+            source.get("clinical_file", ""), source["facets_dir"], source.get("mode", "purity"),
+            source.get("fit_class", "research")))
+        if fits["single_run"]:
+            build.append("meta.setSingleRunPerSample(True, %r)" % ("default" in fits["tiers"]))
+            build.append("meta.setFitPolicy(%s)" % _fit_policy_code(fits))
+    if sample_list:
+        build.append('meta.selectSamplesFromFile(os.path.join(JOB_DIR, "samples.txt"))')
+    build.append("meta.buildFacetsMeta()")
+
+    lines.append("")
+    if source.get("prebuilt", False):
+        #Read-only load of the newest CADENCE pickle that fits this request; otherwise build as usual.
+        lines += [
+            "from facetsAPI.prebuilt import load_prebuilt_meta",
+            "meta, meta_source = load_prebuilt_meta(%r, %r, %r, %r, %s)" % (
+                source["facets_dir"], source.get("mode", "purity"), source.get("fit_class", "research"),
+                source.get("clinical_file", ""),
+                'os.path.join(JOB_DIR, "samples.txt")' if sample_list else "None"),
+            "if meta is not None:",
+            '    print("Using pre-generated FacetsMeta %s (cohort %s)" % (meta_source["path"], meta_source["stamp"]))',
+            "else:",
+            '    print("Pre-generated FacetsMeta not used: %s. Building it from the repository." % meta_source["reason"])',
+        ]
+        lines += ["    " + line for line in build]
+    else:
+        lines.append('meta_source = {"requested": False, "used": False}')
+        lines += build
+    lines += ["", "dataset = FacetsDataset(meta)"]
     lines += _filter_lines(filters)
     lines += ["dataset.buildFacetsDataset()", ""]
     for output in sorted(outputs, key=lambda o: o["type"] not in SEGMENT_SCORE_OUTPUTS):
@@ -584,6 +628,7 @@ def render(spec, ctx):
         '    "num_build_failed": dataset.num_build_failed,',
         '    "build_counts": meta.build_counts,',
         '    "unmatched_sample_ids": list(meta.unmatched_sample_ids),',
+        '    "meta_source": meta_source,',
         '    "outputs": sorted(os.listdir(OUT)),',
         "}",
         'with open(os.path.join(JOB_DIR, "run_summary.json"), "w") as fh:',
